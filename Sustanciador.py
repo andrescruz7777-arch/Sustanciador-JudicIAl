@@ -372,19 +372,99 @@ else:
     st.info("Sube la base en Excel para continuar.")
     
     import zipfile
-
-# Nuevo botón
+# ==========================
+# Descarga múltiple en ZIP
+# ==========================
 if st.button("📦 Descargar todos los documentos"):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w") as zf:
         for idx, row in df.iterrows():
-            # ... aplicar la misma lógica que haces para un registro ...
-            # generar doc (Document)
+            # Variables base
+            cc = str(row.get(col_map.get('A'), '')).strip()
+            nombre = str(row.get(col_map.get('B'), '')).strip()
+            juzgado = str(row.get(col_map.get('H'), '')).strip()
+            correo = str(row.get(col_map.get('J'), '')).strip()
+            radicado = str(row.get(col_map.get('I'), '')).strip()
+
+            # Cargar plantilla
+            template_path = TEMPLATES[subetapa]
+            doc = Document(template_path)
+
+            # Reemplazos comunes
+            replace_line_contains(doc, "JUZGADO", juzgado)
+            replace_line_contains(doc, "@", correo)
+            replace_after_label(doc, "RAD", radicado)
+            replace_after_label(doc, "DEMANDANTE", "BANCO GNB SUDAMERIS S.A")
+            replace_after_label(doc, "DEMANDADO", f"CC {cc} {nombre}")
+
+            # Reemplazos específicos por subetapa
+            fecha_str_final = None
+            if subetapa == "Mandamiento":
+                af_col = col_map.get('AF')
+                fecha_dt = None
+                if af_col:
+                    fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), MANDAMIENTO_KEYS)
+                if fecha_dt:
+                    fecha_str_final = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
+                    replace_date_pattern(
+                        doc,
+                        anchor_contains="el pasado",
+                        pattern_regex=PATTERN_PASADO,
+                        new_date_str=f"el pasado {fecha_str_final}"
+                    )
+
+            elif subetapa == "Sentencia":
+                af_col = col_map.get('AF')
+                fecha_dt = None
+                if af_col:
+                    fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), SENTENCIA_KEYS)
+                if fecha_dt:
+                    fecha_str_final = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
+                    replace_date_pattern(
+                        doc,
+                        anchor_contains="el pasado",
+                        pattern_regex=PATTERN_PASADO,
+                        new_date_str=f"el pasado {fecha_str_final}"
+                    )
+
+            elif subetapa == "Calificacion":
+                o_col = col_map.get('O')
+                fecha_dt = None
+                if o_col:
+                    raw = row.get(o_col)
+                    if isinstance(raw, datetime):
+                        fecha_dt = raw
+                    else:
+                        fecha_dt = parse_ddmmyyyy(str(raw))
+                if fecha_dt:
+                    fecha_str_final = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
+                    replace_date_pattern(
+                        doc,
+                        anchor_contains="radicada el",
+                        pattern_regex=PATTERN_RADICADA,
+                        new_date_str=f"radicada el día {fecha_str_final}"
+                    )
+
+            elif subetapa == "Liquidacion de credito":
+                # Solo reemplazos comunes, sin fecha dinámica
+                pass
+
+            # Guardar documento en memoria
+            nombre_sub = {
+                "Mandamiento": "Mandamiento",
+                "Sentencia": "Sentencia",
+                "Calificacion": "Calificacion",
+                "Liquidacion de credito": "Liquidacion_de_credito",
+            }[subetapa]
+
             out_name = f"{sanitize_filename(cc)}_{sanitize_filename(nombre)}_{nombre_sub}.docx"
             temp_io = io.BytesIO()
             doc.save(temp_io)
             temp_io.seek(0)
+
+            # Escribir en el ZIP
             zf.writestr(out_name, temp_io.read())
+
     zip_buffer.seek(0)
     st.download_button(
         label="⬇️ Descargar ZIP con todos los documentos",
@@ -392,4 +472,5 @@ if st.button("📦 Descargar todos los documentos"):
         file_name=f"Documentos_{subetapa}.zip",
         mime="application/zip"
     )
+
 
