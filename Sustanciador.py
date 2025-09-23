@@ -157,10 +157,10 @@ def doc_to_preview_text(doc: Document) -> str:
 # Mapeo de plantillas y lógica por subetapa
 # ==========================
 TEMPLATES = {
-    "Mandamiento": "MODELO IMPULSO PROCESAL CORRECCIÓN MP.docx",
-    "Sentencia": "MODELO IMPULSO PROCESAL CORRECCIÓN SENTENCIA.docx",
+    "Mandamiento": "MODELO IMPULSO PROCESAL CORRECCIÓN MP.docx",
+    "Sentencia": "MODELO IMPULSO PROCESAL CORRECCIÓN SENTENCIA.docx",
     "Calificacion": "MODELO IMPULSO CALIFICACION DE DEMANDA.docx",
-    "Liquidacion de credito": "MODELO IMPULSO LIQUIDACION DE CREDITO.docx",
+    "Liquidacion de credito": "MODELO IMPULSO CALIFICACION DE DEMANDA.docx",
 }
 
 
