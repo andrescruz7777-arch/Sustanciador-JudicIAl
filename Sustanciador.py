@@ -199,15 +199,15 @@ if excel_file:
     }
     # Intento mapear por nombres conocidos
     # Permitimos alias comunes
-    aliases = {
-        'A': ['CC', 'Cedula', 'Cédula', 'Documento', 'Identificacion', 'Identificación'],
-        'B': ['NombreTitular', 'Nombre', 'Demandado', 'DemandadoNombre'],
-        'H': ['Juzgado'],
-        'J': ['Correo', 'CorreoJuzgado', 'EmailJuzgado'],
-        'I': ['Radicado', 'RADICADO'],
-        'O': ['FECHA DE PRESENTACIÓN DDA', 'Fecha de presentacion dda', 'FechaPresentacionDDA'],
-        'AF': ['Cuaderno Principal', 'CUADERNO PRINCIPAL', 'Cuaderno_Principal'],
-    }
+   aliases = {
+    'A': ['CC', 'Cedula', 'Cédula', 'Documento', 'Identificacion', 'Identificación'],
+    'B': ['NombreTitular', 'Nombre', 'Demandado', 'DemandadoNombre'],
+    'H': ['Juzgado'],
+    'J': ['Correo', 'CorreoJuzgado', 'EmailJuzgado', 'CORREO JUZGADO'],  # 👈 aquí añadimos
+    'I': ['Radicado', 'RADICADO'],
+    'O': ['FECHA DE PRESENTACIÓN DDA', 'Fecha de presentacion dda', 'FechaPresentacionDDA'],
+    'AF': ['Cuaderno Principal', 'CUADERNO PRINCIPAL', 'Cuaderno_Principal'],
+   }
 
     col_map = {}
     lower_cols = {norm_text(c): c for c in df.columns}
