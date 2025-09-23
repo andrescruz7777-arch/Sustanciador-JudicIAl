@@ -64,18 +64,31 @@ def sanitize_filename(s: str) -> str:
 # ==========================
 # Reglas de búsqueda de fechas en AF
 # ==========================
+# Reglas de búsqueda de fechas en AF
+# Nota: como usamos norm_text(), se eliminan tildes y se pasa a minúsculas
+# así 'CORRECCIÓN' o 'correcion' siempre matchean.
+
 MANDAMIENTO_KEYS = [
-    "solicitud correccion del auto",
-    "solicitud correccion del mandamiento de pago",
-    "correccion del mandamiento de pago",
+    "mandamiento",                          # cualquier mención a mandamiento
+    "correccion mandamiento",               # corrección mandamiento
+    "correcion mandamiento",                # sin tilde
+    "solicitud correccion mandamiento",     # solicitud correccion mandamiento
+    "solicitud correccion del mandamiento", # con 'del'
+    "solicitud correccion del auto",        # cuando mencionan 'auto'
+    "correccion del auto",                  # variante corta
+    "correcion del auto"                    # sin tilde
 ]
 
 SENTENCIA_KEYS = [
+    "sentencia",                            # cualquier mención a sentencia
+    "correccion sentencia",
+    "correcion sentencia",
+    "solicitud correccion sentencia",
     "solicitud correccion de sentencia",
-    "correccion de sentencia",
+    "solicitud correccion de la sentencia",
+    "correccion del auto sentencia",
+    "correcion del auto sentencia"
 ]
-
-
 def match_any(text: str, keys) -> bool:
     t = norm_text(text)
     return any(k in t for k in keys)
