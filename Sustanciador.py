@@ -208,8 +208,6 @@ aliases = {
     'O': ['FECHA DE PRESENTACIÓN DDA', 'Fecha de presentacion dda', 'FechaPresentacionDDA'],
     'AF': ['Cuaderno Principal', 'CUADERNO PRINCIPAL', 'Cuaderno_Principal'],
 }
-
-
     col_map = {}
     lower_cols = {norm_text(c): c for c in df.columns}
     for key, names in aliases.items():
