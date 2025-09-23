@@ -160,7 +160,7 @@ TEMPLATES = {
     "Mandamiento": "MODELO IMPULSO PROCESAL CORRECCIÓN MP.docx",
     "Sentencia": "MODELO IMPULSO PROCESAL CORRECCIÓN SENTENCIA.docx",
     "Calificacion": "MODELO IMPULSO CALIFICACION DE DEMANDA.docx",
-    "Liquidacion de credito": "MODELO IMPULSO CALIFICACION DE DEMANDA.docx",
+    "Liquidacion de credito": "MODELO IMPULSO LIQUIDACION DE CREDITO.docx",
 }
 
 
