@@ -163,6 +163,7 @@ TEMPLATES = {
     "Liquidacion de credito": "MODELO IMPULSO LIQUIDACION DE CREDITO.docx",
 }
 
+
 SUBETAPAS = list(TEMPLATES.keys())
 
 # Patrones de fecha para reemplazo en el cuerpo
