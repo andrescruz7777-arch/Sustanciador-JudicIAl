@@ -7,6 +7,7 @@
 import io
 import re
 import unicodedata
+import zipfile
 from datetime import datetime
 
 import pandas as pd
