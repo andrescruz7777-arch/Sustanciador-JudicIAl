@@ -48,12 +48,14 @@ def parse_ddmmyyyy(s: str):
     except Exception:
         return None
 
-
 def format_fecha_dd_de_mm_de_yyyy(dt: datetime) -> str:
     if not dt:
         return ""
-    return f"{dt.day:02d} de {dt.month:02d} de {dt.year}"
-
+    meses = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ]
+    return f"{dt.day:02d} de {meses[dt.month-1]} de {dt.year}"
 
 def sanitize_filename(s: str) -> str:
     s = strip_accents(s or "").strip()
@@ -367,3 +369,26 @@ if excel_file:
 
 else:
     st.info("Sube la base en Excel para continuar.")
+    
+    import zipfile
+
+# Nuevo botón
+if st.button("📦 Descargar todos los documentos"):
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zf:
+        for idx, row in df.iterrows():
+            # ... aplicar la misma lógica que haces para un registro ...
+            # generar doc (Document)
+            out_name = f"{sanitize_filename(cc)}_{sanitize_filename(nombre)}_{nombre_sub}.docx"
+            temp_io = io.BytesIO()
+            doc.save(temp_io)
+            temp_io.seek(0)
+            zf.writestr(out_name, temp_io.read())
+    zip_buffer.seek(0)
+    st.download_button(
+        label="⬇️ Descargar ZIP con todos los documentos",
+        data=zip_buffer,
+        file_name=f"Documentos_{subetapa}.zip",
+        mime="application/zip"
+    )
+
