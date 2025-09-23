@@ -352,10 +352,3 @@ if excel_file:
 
 else:
     st.info("Sube la base en Excel para continuar.")
-
-
-# requirements.txt
-streamlit==1.37.1
-pandas==2.2.2
-openpyxl==3.1.5
-python-docx==1.1.2
