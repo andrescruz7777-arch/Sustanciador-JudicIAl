@@ -19,7 +19,7 @@ from docx import Document
 # ==========================
 st.set_page_config(page_title="⚖️ Sustanciador Judicial — COS JudicIA", layout="wide")
 st.title("⚖️ Sustanciador Judicial — COS JudicIA")
-st.caption("Genera memoriales completos desde plantillas .docx con datos de Excel. Salida .docx 100% fiel al modelo.")
+st.caption("Genera memoriales completos desde plantillas .docx con datos de Excel.")
 
 # ==========================
 # Utilidades
