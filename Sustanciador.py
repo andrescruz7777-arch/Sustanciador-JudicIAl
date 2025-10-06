@@ -478,18 +478,23 @@ plantilla_medidas = st.file_uploader("📄 Cargar plantilla de Medidas Cautelare
 
 if excel_file and plantilla_demanda and plantilla_medidas:
     df = pd.read_excel(excel_file)
+    
+    # 🔧 Limpieza de encabezados para evitar espacios o mayúsculas
+    df.columns = [str(c).strip() for c in df.columns]
+
     st.success(f"Base cargada correctamente: {df.shape[0]} registros.")
+    st.write("🧩 Columnas detectadas:", list(df.columns))
 
     if st.button("⚖️ Generar Demanda y Medidas Cautelares"):
         zip_buffer = io.BytesIO()
 
         with zipfile.ZipFile(zip_buffer, "w") as zf:
             for _, fila in df.iterrows():
-                # === Variables comunes ===
-                juzgado_base = str(fila["JUZGADO"]).strip()
-                cuantia = str(fila["CUANTÍA"]).strip()
-                nombre_ddo = str(fila["NOMBRE DDO"]).strip()
-                cc_ddo = str(fila["CC DDO"]).strip()
+                # === Variables del Excel ===
+                juzgado_base = str(fila.get("JUZGADO", "")).strip()
+                cuantia = str(fila.get("CUANTÍA", "")).strip()
+                nombre_ddo = str(fila.get("NOMBRE DDO", "")).strip()
+                cc_ddo = str(fila.get("CC DDO", "")).strip()
                 ciudad_domicilio = str(fila.get("CIUDAD DOMICILIO", "")).strip()
                 no_pagare = str(fila.get("NO. PAGARÉ", "")).strip()
                 capital_letras = str(fila.get("CAPITAL EN LETRAS", "")).strip()
@@ -498,26 +503,26 @@ if excel_file and plantilla_demanda and plantilla_medidas:
                 fecha_int = str(fila.get("FECHA INTERESES", "")).strip()
                 domicilio_pagare = str(fila.get("DOMICILIO PAGARÉ", "")).strip()
 
-                # Limpiar y reestructurar Juzgado
+                # Limpieza del texto del juzgado y estructura con (REPARTO)
                 juzgado_sin_reparto = juzgado_base.replace("(REPARTO)", "").strip()
                 texto_juzgado = f"{juzgado_sin_reparto}\n(REPARTO)"
 
-                # ========== DEMANDA ==========
+                # ===================== DEMANDA =====================
                 doc_dem = Document(plantilla_demanda)
                 for p in doc_dem.paragraphs:
-                    text = p.text
-                    text = text.replace("{{JUZGADO}}", texto_juzgado)
-                    text = text.replace("{{CUANTIA}}", cuantia)
-                    text = text.replace("{{NOMBRE_DDO}}", nombre_ddo)
-                    text = text.replace("{{CC_DDO}}", cc_ddo)
-                    text = text.replace("{{CIUDAD_DOMICILIO}}", ciudad_domicilio)
-                    text = text.replace("{{NO_PAGARE}}", no_pagare)
-                    text = text.replace("{{CAPITAL_LETRAS}}", capital_letras)
-                    text = text.replace("{{CAPITAL}}", capital)
-                    text = text.replace("{{FECHA_VENCIMIENTO}}", fecha_venc)
-                    text = text.replace("{{FECHA_INTERESES}}", fecha_int)
-                    text = text.replace("{{DOMICILIO_PAGARE}}", domicilio_pagare)
-                    p.text = text
+                    p.text = (p.text
+                        .replace("{{JUZGADO}}", texto_juzgado)
+                        .replace("{{CUANTIA}}", cuantia)
+                        .replace("{{NOMBRE_DDO}}", nombre_ddo)
+                        .replace("{{CC_DDO}}", cc_ddo)
+                        .replace("{{CIUDAD_DOMICILIO}}", ciudad_domicilio)
+                        .replace("{{NO_PAGARE}}", no_pagare)
+                        .replace("{{CAPITAL_LETRAS}}", capital_letras)
+                        .replace("{{CAPITAL}}", capital)
+                        .replace("{{FECHA_VENCIMIENTO}}", fecha_venc)
+                        .replace("{{FECHA_INTERESES}}", fecha_int)
+                        .replace("{{DOMICILIO_PAGARE}}", domicilio_pagare)
+                    )
 
                 out_name_dem = f"{cc_ddo}_{nombre_ddo.replace(' ','_')}_DEMANDA.docx"
                 tmp_dem = io.BytesIO()
@@ -525,15 +530,15 @@ if excel_file and plantilla_demanda and plantilla_medidas:
                 tmp_dem.seek(0)
                 zf.writestr(out_name_dem, tmp_dem.read())
 
-                # ========== MEDIDAS CAUTELARES ==========
+                # ================== MEDIDAS CAUTELARES ==================
                 doc_med = Document(plantilla_medidas)
                 for p in doc_med.paragraphs:
-                    text = p.text
-                    text = text.replace("{{JUZGADO}}", texto_juzgado)
-                    text = text.replace("{{CUANTIA}}", cuantia)
-                    text = text.replace("{{NOMBRE_DDO}}", nombre_ddo)
-                    text = text.replace("{{CC_DDO}}", cc_ddo)
-                    p.text = text
+                    p.text = (p.text
+                        .replace("{{JUZGADO}}", texto_juzgado)
+                        .replace("{{CUANTIA}}", cuantia)
+                        .replace("{{NOMBRE_DDO}}", nombre_ddo)
+                        .replace("{{CC_DDO}}", cc_ddo)
+                    )
 
                 out_name_med = f"{cc_ddo}_{nombre_ddo.replace(' ','_')}_MEDIDASCAUTELARES.docx"
                 tmp_med = io.BytesIO()
