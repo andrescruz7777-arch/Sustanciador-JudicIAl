@@ -487,7 +487,7 @@ excel_file = st.file_uploader("📂 Cargar base de datos Excel (Clientes / Deman
 
 # Rutas fijas de plantillas en el repo
 PLANTILLA_DEMANDA = "FORMATO_ DEMANDA.docx"
-PLANTILLA_MEDIDAS = "FORMATO_ SOLICITUD_MEDIDAS.docx"
+PLANTILLA_MEDIDAS = "FORMATO_ SOLICITUD MEDIDAS.docx"
 
 if excel_file:
     df = pd.read_excel(excel_file)
