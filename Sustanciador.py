@@ -486,8 +486,8 @@ st.header("⚖️ Generador de Demandas y Medidas Cautelares (COS)")
 excel_file = st.file_uploader("📂 Cargar base de datos Excel (Clientes / Demandas)", type=["xlsx", "xlsm"])
 
 # Rutas fijas de plantillas en el repo
-PLANTILLA_DEMANDA = "FORMATO_DEMANDA.docx"
-PLANTILLA_MEDIDAS = "FORMATO_SOLICITUD MEDIDAS.docx"
+PLANTILLA_DEMANDA = "FORMATO_ DEMANDA.docx"
+PLANTILLA_MEDIDAS = "FORMATO_ SOLICITUD MEDIDAS.docx"
 
 if excel_file:
     df = pd.read_excel(excel_file)
