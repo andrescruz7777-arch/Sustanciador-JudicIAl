@@ -3,7 +3,7 @@
 # Descripción: Genera documentos Word (.docx) basados en modelos y una base Excel.
 # Subetapas: Mandamiento de Pago, Corrección de Sentencia, Calificación de Demanda, Liquidación de Crédito.
 # Salida: .docx (idéntico al modelo). El banco puede convertir a PDF externamente.
-
+import os
 import io
 import re
 import unicodedata
