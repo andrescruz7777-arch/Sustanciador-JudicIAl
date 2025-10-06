@@ -472,5 +472,106 @@ if st.button("📦 Descargar todos los documentos"):
         file_name=f"Documentos_{subetapa}.zip",
         mime="application/zip"
     )
+# ===============================================================
+# BLOQUE 2 — Generador de Demandas y Medidas Cautelares (COS)
+# ===============================================================
 
+import tempfile
+from docx import Document
+from docx2pdf import convert
+
+st.markdown("---")
+st.header("⚖️ Generador de Demandas y Medidas Cautelares (COS)")
+
+# Cargar solo Excel dinámico
+excel_file = st.file_uploader("📂 Cargar base de datos Excel (Clientes / Demandas)", type=["xlsx", "xlsm"])
+
+# Rutas fijas de plantillas en el repo
+PLANTILLA_DEMANDA = "FORMATO_DEMANDA.docx"
+PLANTILLA_MEDIDAS = "FORMATO_SOLICITUD MEDIDAS.docx"
+
+if excel_file:
+    df = pd.read_excel(excel_file)
+    st.success(f"Base cargada correctamente ({len(df)} filas) ✅")
+
+    if st.button("⚙️ Generar Documentos PDF"):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            resultados = []
+
+            for _, fila in df.iterrows():
+                nombre = str(fila["NOMBRE DDO"]).strip()
+                cc = str(fila["CC DDO"]).strip()
+                cuantia = str(fila["CUANTÍA"]).strip()
+                juzgado = str(fila["JUZGADO"]).strip()
+                ciudad = str(fila["CIUDAD DOMICILIO"]).strip()
+                domicilio = str(fila["DOMICILIO PAGARÉ"]).strip()
+                pagare = str(fila["NO. PAGARÉ"]).strip()
+                capital = str(fila["CAPITAL"]).strip()
+                capital_letras = str(fila["CAPITAL EN LETRAS"]).strip()
+                f_venc = str(fila["FECHA VENCIMIENTO"]).strip()
+                f_interes = str(fila["FECHA INTERESES"]).strip()
+
+                # === Reemplazos comunes ===
+                replacements = {
+                    "{{JUZGADO}}": juzgado,
+                    "{{CUANTIA}}": cuantia,
+                    "{{NOMBRE_DDO}}": nombre,
+                    "{{CC_DDO}}": cc,
+                    "{{CIUDAD_DOMICILIO}}": ciudad,
+                    "{{DOMICILIO_PAGARE}}": domicilio,
+                    "{{NO_PAGARE}}": pagare,
+                    "{{CAPITAL}}": capital,
+                    "{{CAPITAL_LETRAS}}": capital_letras,
+                    "{{FECHA_VENCIMIENTO}}": f_venc,
+                    "{{FECHA_INTERESES}}": f_interes,
+                }
+
+                def fill_template(template_path, output_path):
+                    doc = Document(template_path)
+                    for p in doc.paragraphs:
+                        for k, v in replacements.items():
+                            if k in p.text:
+                                p.text = p.text.replace(k, v)
+                    doc.save(output_path)
+
+                # === Generar DEMANDA ===
+                out_demanda_docx = os.path.join(tmpdir, f"{cc}_{nombre.replace(' ', '_')}_DEMANDA.docx")
+                fill_template(PLANTILLA_DEMANDA, out_demanda_docx)
+                convert(out_demanda_docx)
+
+                # === Generar MEDIDAS CAUTELARES ===
+                out_medidas_docx = os.path.join(tmpdir, f"{cc}_{nombre.replace(' ', '_')}_MEDIDASCAUTELARES.docx")
+                fill_template(PLANTILLA_MEDIDAS, out_medidas_docx)
+                convert(out_medidas_docx)
+
+                resultados.append({
+                    "CC": cc,
+                    "Nombre": nombre,
+                    "Demanda": f"{cc}_{nombre}_DEMANDA.pdf",
+                    "Medidas": f"{cc}_{nombre}_MEDIDASCAUTELARES.pdf"
+                })
+
+            # === Crear ZIP con todos los PDFs ===
+            zip_path = os.path.join(tmpdir, "Documentos_Generados.zip")
+            with zipfile.ZipFile(zip_path, "w") as zipf:
+                for r in resultados:
+                    zipf.write(
+                        os.path.join(tmpdir, r["Demanda"].replace(".pdf", ".pdf")),
+                        arcname=r["Demanda"]
+                    )
+                    zipf.write(
+                        os.path.join(tmpdir, r["Medidas"].replace(".pdf", ".pdf")),
+                        arcname=r["Medidas"]
+                    )
+
+            # === Descargar ZIP ===
+            with open(zip_path, "rb") as f:
+                st.download_button(
+                    label="⬇️ Descargar ZIP con todos los PDFs generados",
+                    data=f,
+                    file_name="Documentos_Generados_COS.zip",
+                    mime="application/zip"
+                )
+
+        st.success("✅ Documentos generados exitosamente con firma y formato intacto.")
 
