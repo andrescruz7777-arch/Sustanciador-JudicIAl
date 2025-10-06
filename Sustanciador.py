@@ -475,23 +475,25 @@ if st.button("📦 Descargar todos los documentos"):
 # ===============================================================
 
 import tempfile
+import os
+import zipfile
 from docx import Document
 
 st.markdown("---")
 st.header("⚖️ Generador de Demandas y Medidas Cautelares (COS)")
 
-# Cargar solo Excel dinámico
+# Cargar base Excel
 excel_file = st.file_uploader("📂 Cargar base de datos Excel (Clientes / Demandas)", type=["xlsx", "xlsm"])
 
 # Rutas fijas de plantillas en el repo
-PLANTILLA_DEMANDA = "FORMATO_ DEMANDA.docx"
-PLANTILLA_MEDIDAS = "FORMATO_ SOLICITUD MEDIDAS.docx"
+PLANTILLA_DEMANDA = "FORMATO_DEMANDA.docx"
+PLANTILLA_MEDIDAS = "FORMATO_SOLICITUD_MEDIDAS.docx"
 
 if excel_file:
     df = pd.read_excel(excel_file)
     st.success(f"Base cargada correctamente ({len(df)} filas) ✅")
 
-    if st.button("⚙️ Generar Documentos PDF"):
+    if st.button("⚙️ Generar Documentos (.docx)"):
         with tempfile.TemporaryDirectory() as tmpdir:
             resultados = []
 
@@ -524,7 +526,11 @@ if excel_file:
                 }
 
                 def fill_template(template_path, output_path):
-                    doc = Document(template_path)
+                    try:
+                        doc = Document(template_path)
+                    except Exception as e:
+                        st.error(f"No se pudo abrir la plantilla '{template_path}': {e}")
+                        st.stop()
                     for p in doc.paragraphs:
                         for k, v in replacements.items():
                             if k in p.text:
@@ -532,42 +538,42 @@ if excel_file:
                     doc.save(output_path)
 
                 # === Generar DEMANDA ===
-                out_demanda_docx = os.path.join(tmpdir, f"{cc}_{nombre.replace(' ', '_')}_DEMANDA.docx")
-                fill_template(PLANTILLA_DEMANDA, out_demanda_docx)
-                convert(out_demanda_docx)
+                out_demanda = os.path.join(tmpdir, f"{cc}_{nombre.replace(' ', '_')}_DEMANDA.docx")
+                fill_template(PLANTILLA_DEMANDA, out_demanda)
 
                 # === Generar MEDIDAS CAUTELARES ===
-                out_medidas_docx = os.path.join(tmpdir, f"{cc}_{nombre.replace(' ', '_')}_MEDIDASCAUTELARES.docx")
-                fill_template(PLANTILLA_MEDIDAS, out_medidas_docx)
-                convert(out_medidas_docx)
+                out_medidas = os.path.join(tmpdir, f"{cc}_{nombre.replace(' ', '_')}_MEDIDASCAUTELARES.docx")
+                fill_template(PLANTILLA_MEDIDAS, out_medidas)
 
                 resultados.append({
                     "CC": cc,
                     "Nombre": nombre,
-                    "Demanda": f"{cc}_{nombre}_DEMANDA.pdf",
-                    "Medidas": f"{cc}_{nombre}_MEDIDASCAUTELARES.pdf"
+                    "Demanda": os.path.basename(out_demanda),
+                    "Medidas": os.path.basename(out_medidas)
                 })
 
-            # === Crear ZIP con todos los PDFs ===
-            zip_path = os.path.join(tmpdir, "Documentos_Generados.zip")
+            # === Crear ZIP con todos los DOCX ===
+            zip_path = os.path.join(tmpdir, "Documentos_Generados_COS.zip")
             with zipfile.ZipFile(zip_path, "w") as zipf:
                 for r in resultados:
                     zipf.write(
-                        os.path.join(tmpdir, r["Demanda"].replace(".pdf", ".pdf")),
+                        os.path.join(tmpdir, r["Demanda"]),
                         arcname=r["Demanda"]
                     )
                     zipf.write(
-                        os.path.join(tmpdir, r["Medidas"].replace(".pdf", ".pdf")),
+                        os.path.join(tmpdir, r["Medidas"]),
                         arcname=r["Medidas"]
                     )
 
-            # === Descargar ZIP ===
+            # === Botón de descarga del ZIP ===
             with open(zip_path, "rb") as f:
                 st.download_button(
-                    label="⬇️ Descargar ZIP con todos los PDFs generados",
+                    label="⬇️ Descargar ZIP con todos los documentos (.docx)",
                     data=f,
                     file_name="Documentos_Generados_COS.zip",
                     mime="application/zip"
                 )
 
-        st.success("✅ Documentos generados exitosamente con firma y formato intacto.")
+        st.success("✅ Documentos generados exitosamente (formato original conservado).")
+else:
+    st.info("Sube la base Excel para continuar.")
