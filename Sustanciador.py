@@ -573,4 +573,3 @@ if excel_file:
                 )
 
         st.success("✅ Documentos generados exitosamente con firma y formato intacto.")
-
