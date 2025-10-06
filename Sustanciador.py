@@ -12,7 +12,7 @@ from datetime import datetime
 
 import pandas as pd
 import streamlit as st
-from docx import Document
+
 
 # ==========================
 # Configuración inicial UI
