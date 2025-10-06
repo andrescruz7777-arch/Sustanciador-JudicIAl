@@ -478,7 +478,6 @@ if st.button("📦 Descargar todos los documentos"):
 
 import tempfile
 from docx import Document
-from docx2pdf import convert
 
 st.markdown("---")
 st.header("⚖️ Generador de Demandas y Medidas Cautelares (COS)")
