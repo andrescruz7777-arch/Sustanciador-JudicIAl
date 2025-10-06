@@ -470,110 +470,84 @@ if st.button("📦 Descargar todos los documentos"):
         file_name=f"Documentos_{subetapa}.zip",
         mime="application/zip"
     )
-# ===============================================================
-# BLOQUE 2 — Generador de Demandas y Medidas Cautelares (COS)
-# ===============================================================
+st.header("⚖️ Generador de Demandas y Medidas Cautelares")
 
-import tempfile
-import os
-import zipfile
-from docx import Document
+excel_file = st.file_uploader("📂 Cargar base de datos Excel (.xlsx / .xlsm)", type=["xlsx", "xlsm"])
+plantilla_demanda = st.file_uploader("📄 Cargar plantilla de Demanda (.docx)", type=["docx"])
+plantilla_medidas = st.file_uploader("📄 Cargar plantilla de Medidas Cautelares (.docx)", type=["docx"])
 
-st.markdown("---")
-st.header("⚖️ Generador de Demandas y Medidas Cautelares (COS)")
-
-# Cargar base Excel
-excel_file = st.file_uploader("📂 Cargar base de datos Excel (Clientes / Demandas)", type=["xlsx", "xlsm"])
-
-# Rutas fijas de plantillas en el repo
-PLANTILLA_DEMANDA = "FORMATO_ DEMANDA.docx"
-PLANTILLA_MEDIDAS = "FORMATO_ SOLICITUD MEDIDAS.docx"
-
-if excel_file:
+if excel_file and plantilla_demanda and plantilla_medidas:
     df = pd.read_excel(excel_file)
-    st.success(f"Base cargada correctamente ({len(df)} filas) ✅")
+    st.success(f"Base cargada correctamente: {df.shape[0]} registros.")
 
-    if st.button("⚙️ Generar Documentos (.docx)"):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            resultados = []
+    if st.button("⚖️ Generar Demanda y Medidas Cautelares"):
+        zip_buffer = io.BytesIO()
 
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
             for _, fila in df.iterrows():
-                nombre = str(fila["NOMBRE DDO"]).strip()
-                cc = str(fila["CC DDO"]).strip()
+                # === Variables comunes ===
+                juzgado_base = str(fila["JUZGADO"]).strip()
                 cuantia = str(fila["CUANTÍA"]).strip()
-                juzgado = str(fila["JUZGADO"]).strip()
-                ciudad = str(fila["CIUDAD DOMICILIO"]).strip()
-                domicilio = str(fila["DOMICILIO PAGARÉ"]).strip()
-                pagare = str(fila["NO. PAGARÉ"]).strip()
-                capital = str(fila["CAPITAL"]).strip()
-                capital_letras = str(fila["CAPITAL EN LETRAS"]).strip()
-                f_venc = str(fila["FECHA VENCIMIENTO"]).strip()
-                f_interes = str(fila["FECHA INTERESES"]).strip()
+                nombre_ddo = str(fila["NOMBRE DDO"]).strip()
+                cc_ddo = str(fila["CC DDO"]).strip()
+                ciudad_domicilio = str(fila.get("CIUDAD DOMICILIO", "")).strip()
+                no_pagare = str(fila.get("NO. PAGARÉ", "")).strip()
+                capital_letras = str(fila.get("CAPITAL EN LETRAS", "")).strip()
+                capital = str(fila.get("CAPITAL", "")).strip()
+                fecha_venc = str(fila.get("FECHA VENCIMIENTO", "")).strip()
+                fecha_int = str(fila.get("FECHA INTERESES", "")).strip()
+                domicilio_pagare = str(fila.get("DOMICILIO PAGARÉ", "")).strip()
 
-                # === Reemplazos comunes ===
-                replacements = {
-                    "{{JUZGADO}}": juzgado,
-                    "{{CUANTIA}}": cuantia,
-                    "{{NOMBRE_DDO}}": nombre,
-                    "{{CC_DDO}}": cc,
-                    "{{CIUDAD_DOMICILIO}}": ciudad,
-                    "{{DOMICILIO_PAGARE}}": domicilio,
-                    "{{NO_PAGARE}}": pagare,
-                    "{{CAPITAL}}": capital,
-                    "{{CAPITAL_LETRAS}}": capital_letras,
-                    "{{FECHA_VENCIMIENTO}}": f_venc,
-                    "{{FECHA_INTERESES}}": f_interes,
-                }
+                # Limpiar y reestructurar Juzgado
+                juzgado_sin_reparto = juzgado_base.replace("(REPARTO)", "").strip()
+                texto_juzgado = f"{juzgado_sin_reparto}\n(REPARTO)"
 
-                def fill_template(template_path, output_path):
-                    try:
-                        doc = Document(template_path)
-                    except Exception as e:
-                        st.error(f"No se pudo abrir la plantilla '{template_path}': {e}")
-                        st.stop()
-                    for p in doc.paragraphs:
-                        for k, v in replacements.items():
-                            if k in p.text:
-                                p.text = p.text.replace(k, v)
-                    doc.save(output_path)
+                # ========== DEMANDA ==========
+                doc_dem = Document(plantilla_demanda)
+                for p in doc_dem.paragraphs:
+                    text = p.text
+                    text = text.replace("{{JUZGADO}}", texto_juzgado)
+                    text = text.replace("{{CUANTIA}}", cuantia)
+                    text = text.replace("{{NOMBRE_DDO}}", nombre_ddo)
+                    text = text.replace("{{CC_DDO}}", cc_ddo)
+                    text = text.replace("{{CIUDAD_DOMICILIO}}", ciudad_domicilio)
+                    text = text.replace("{{NO_PAGARE}}", no_pagare)
+                    text = text.replace("{{CAPITAL_LETRAS}}", capital_letras)
+                    text = text.replace("{{CAPITAL}}", capital)
+                    text = text.replace("{{FECHA_VENCIMIENTO}}", fecha_venc)
+                    text = text.replace("{{FECHA_INTERESES}}", fecha_int)
+                    text = text.replace("{{DOMICILIO_PAGARE}}", domicilio_pagare)
+                    p.text = text
 
-                # === Generar DEMANDA ===
-                out_demanda = os.path.join(tmpdir, f"{cc}_{nombre.replace(' ', '_')}_DEMANDA.docx")
-                fill_template(PLANTILLA_DEMANDA, out_demanda)
+                out_name_dem = f"{cc_ddo}_{nombre_ddo.replace(' ','_')}_DEMANDA.docx"
+                tmp_dem = io.BytesIO()
+                doc_dem.save(tmp_dem)
+                tmp_dem.seek(0)
+                zf.writestr(out_name_dem, tmp_dem.read())
 
-                # === Generar MEDIDAS CAUTELARES ===
-                out_medidas = os.path.join(tmpdir, f"{cc}_{nombre.replace(' ', '_')}_MEDIDASCAUTELARES.docx")
-                fill_template(PLANTILLA_MEDIDAS, out_medidas)
+                # ========== MEDIDAS CAUTELARES ==========
+                doc_med = Document(plantilla_medidas)
+                for p in doc_med.paragraphs:
+                    text = p.text
+                    text = text.replace("{{JUZGADO}}", texto_juzgado)
+                    text = text.replace("{{CUANTIA}}", cuantia)
+                    text = text.replace("{{NOMBRE_DDO}}", nombre_ddo)
+                    text = text.replace("{{CC_DDO}}", cc_ddo)
+                    p.text = text
 
-                resultados.append({
-                    "CC": cc,
-                    "Nombre": nombre,
-                    "Demanda": os.path.basename(out_demanda),
-                    "Medidas": os.path.basename(out_medidas)
-                })
+                out_name_med = f"{cc_ddo}_{nombre_ddo.replace(' ','_')}_MEDIDASCAUTELARES.docx"
+                tmp_med = io.BytesIO()
+                doc_med.save(tmp_med)
+                tmp_med.seek(0)
+                zf.writestr(out_name_med, tmp_med.read())
 
-            # === Crear ZIP con todos los DOCX ===
-            zip_path = os.path.join(tmpdir, "Documentos_Generados_COS.zip")
-            with zipfile.ZipFile(zip_path, "w") as zipf:
-                for r in resultados:
-                    zipf.write(
-                        os.path.join(tmpdir, r["Demanda"]),
-                        arcname=r["Demanda"]
-                    )
-                    zipf.write(
-                        os.path.join(tmpdir, r["Medidas"]),
-                        arcname=r["Medidas"]
-                    )
-
-            # === Botón de descarga del ZIP ===
-            with open(zip_path, "rb") as f:
-                st.download_button(
-                    label="⬇️ Descargar ZIP con todos los documentos (.docx)",
-                    data=f,
-                    file_name="Documentos_Generados_COS.zip",
-                    mime="application/zip"
-                )
-
-        st.success("✅ Documentos generados exitosamente (formato original conservado).")
+        zip_buffer.seek(0)
+        st.success("✅ Documentos generados correctamente.")
+        st.download_button(
+            label="⬇️ Descargar ZIP con todas las demandas y medidas",
+            data=zip_buffer,
+            file_name="Documentos_Judiciales.zip",
+            mime="application/zip"
+        )
 else:
-    st.info("Sube la base Excel para continuar.")
+    st.info("Carga el Excel y las dos plantillas para habilitar la generación.")
