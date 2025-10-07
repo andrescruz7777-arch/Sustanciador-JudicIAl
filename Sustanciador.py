@@ -365,194 +365,227 @@ if excel_file:
             file_name=out_name,
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
+# ==============================
+# ⚖️ Generador de Demandas y Medidas Cautelares
+# ==============================
+import io
+import re
+import zipfile
+import pandas as pd
+import streamlit as st
+from docx import Document
 
-else:
-    st.info("Sube la base en Excel para continuar.")
-    
-    import zipfile
-# ==========================
-# Descarga múltiple en ZIP
-# ==========================
-if st.button("📦 Descargar todos los documentos"):
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w") as zf:
-        for idx, row in df.iterrows():
-            # Variables base
-            cc = str(row.get(col_map.get('A'), '')).strip()
-            nombre = str(row.get(col_map.get('B'), '')).strip()
-            juzgado = str(row.get(col_map.get('H'), '')).strip()
-            correo = str(row.get(col_map.get('J'), '')).strip()
-            radicado = str(row.get(col_map.get('I'), '')).strip()
+st.markdown("## ⚖️ Generador de Demandas y Medidas Cautelares")
 
-            # Cargar plantilla
-            template_path = TEMPLATES[subetapa]
-            doc = Document(template_path)
+# ---------- Config ----------
+TEMPLATE_DEMANDA_PATH = "templates/FORMATO_DEMANDA_FINAL.docx"
+TEMPLATE_MEDIDAS_PATH = "templates/FORMATO_SOLICITUD_MEDIDAS_FINAL.docx"
 
-            # Reemplazos comunes
-            replace_line_contains(doc, "JUZGADO", juzgado)
-            replace_line_contains(doc, "@", correo)
-            replace_after_label(doc, "RAD", radicado)
-            replace_after_label(doc, "DEMANDANTE", "BANCO GNB SUDAMERIS S.A")
-            replace_after_label(doc, "DEMANDADO", f"CC {cc} {nombre}")
+REQUIRED_COLUMNS = [
+    "CC", "NOMBRE", "VALIDACION", "PAGARE",
+    "FECHA_VENCIMIENTO", "FECHA_INTERESES",
+    "JUZGADO", "CUANTIA",
+    "CAPITAL", "CAPITAL_EN_LETRAS",
+    "DOMICILIO", "CIUDAD",
+]
 
-            # Reemplazos específicos por subetapa
-            fecha_str_final = None
-            if subetapa == "Mandamiento":
-                af_col = col_map.get('AF')
-                fecha_dt = None
-                if af_col:
-                    fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), MANDAMIENTO_KEYS)
-                if fecha_dt:
-                    fecha_str_final = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    replace_date_pattern(
-                        doc,
-                        anchor_contains="el pasado",
-                        pattern_regex=PATTERN_PASADO,
-                        new_date_str=f"el pasado {fecha_str_final}"
-                    )
+def make_excel_template_bytes():
+    df = pd.DataFrame(columns=REQUIRED_COLUMNS)
+    bio = io.BytesIO()
+    with pd.ExcelWriter(bio, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="BASE")
+    bio.seek(0)
+    return bio
 
-            elif subetapa == "Sentencia":
-                af_col = col_map.get('AF')
-                fecha_dt = None
-                if af_col:
-                    fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), SENTENCIA_KEYS)
-                if fecha_dt:
-                    fecha_str_final = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    replace_date_pattern(
-                        doc,
-                        anchor_contains="el pasado",
-                        pattern_regex=PATTERN_PASADO,
-                        new_date_str=f"el pasado {fecha_str_final}"
-                    )
+def sanitize_filename(s: str) -> str:
+    s = str(s or "").strip()
+    s = re.sub(r"\s+", "_", s)
+    s = re.sub(r"[^A-Za-z0-9_\-\.]", "", s)
+    return s
 
-            elif subetapa == "Calificacion":
-                o_col = col_map.get('O')
-                fecha_dt = None
-                if o_col:
-                    raw = row.get(o_col)
-                    if isinstance(raw, datetime):
-                        fecha_dt = raw
-                    else:
-                        fecha_dt = parse_ddmmyyyy(str(raw))
-                if fecha_dt:
-                    fecha_str_final = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    replace_date_pattern(
-                        doc,
-                        anchor_contains="radicada el",
-                        pattern_regex=PATTERN_RADICADA,
-                        new_date_str=f"radicada el día {fecha_str_final}"
-                    )
+def juzgado_con_reparto(juzgado_text: str) -> str:
+    jt = str(juzgado_text or "").strip()
+    # separar "(REPARTO)" a la línea de abajo (evitar duplicados)
+    jt_clean = jt.replace("(REPARTO)", "").strip()
+    return f"{jt_clean}\n(REPARTO)"
 
-            elif subetapa == "Liquidacion de credito":
-                # Solo reemplazos comunes, sin fecha dinámica
-                pass
+def replace_placeholders_doc(doc: Document, mapping: dict):
+    """
+    Reemplaza placeholders {CLAVE} tanto en párrafos como en tablas.
+    Mantiene el contenido y estilos generales de tablas y estructura.
+    Nota: en párrafos con runs, si un placeholder está partido en varios runs,
+    esta estrategia hace un join por párrafo para garantizar el reemplazo.
+    """
+    # Párrafos
+    for p in doc.paragraphs:
+        if not mapping:
+            continue
+        # recomponer el texto del párrafo completo para asegurar reemplazo 1:1
+        txt = p.text
+        for k, v in mapping.items():
+            txt = txt.replace(f"{{{k}}}", str(v))
+        if txt != p.text:
+            p.text = txt
 
-            # Guardar documento en memoria
-            nombre_sub = {
-                "Mandamiento": "Mandamiento",
-                "Sentencia": "Sentencia",
-                "Calificacion": "Calificacion",
-                "Liquidacion de credito": "Liquidacion_de_credito",
-            }[subetapa]
+    # Tablas (por si tu plantilla tiene encabezados o celdas con placeholders)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    txt = p.text
+                    for k, v in mapping.items():
+                        txt = txt.replace(f"{{{k}}}", str(v))
+                    if txt != p.text:
+                        p.text = txt
 
-            out_name = f"{sanitize_filename(cc)}_{sanitize_filename(nombre)}_{nombre_sub}.docx"
-            temp_io = io.BytesIO()
-            doc.save(temp_io)
-            temp_io.seek(0)
+def render_preview(mapping: dict, tipo: str):
+    st.markdown("#### 👀 Vista previa (fragmento)")
+    # Mostramos un resumen textual con los campos clave ya reemplazados
+    j = str(mapping.get("JUZGADO", "")).split("\n")
+    j1 = j[0] if j else ""
+    st.code(
+f"""Señor:
+{j1}
+(REPARTO)
+E. S. D.
 
-            # Escribir en el ZIP
-            zf.writestr(out_name, temp_io.read())
+REFERENCIA: PROCESO EJECUTIVO DE {mapping.get("CUANTIA","")} CUANTÍA.
+DEMANDANTE : BANCO GNB SUDAMERIS S.A.
+DEMANDADO : {mapping.get("NOMBRE","")} CC {mapping.get("CC","")}
 
-    zip_buffer.seek(0)
+Tipo de documento: {tipo.upper()}
+""", language="markdown")
+
+# ---------- UI: carga y guía ----------
+c1, c2 = st.columns([2, 1])
+with c1:
+    excel_file = st.file_uploader("📂 Cargar base Excel (.xlsx / .xlsm)", type=["xlsx", "xlsm"])
+with c2:
+    st.write(" ")
     st.download_button(
-        label="⬇️ Descargar ZIP con todos los documentos",
-        data=zip_buffer,
-        file_name=f"Documentos_{subetapa}.zip",
-        mime="application/zip"
+        "📘 Descargar archivo guía",
+        data=make_excel_template_bytes(),
+        file_name="PLANTILLA_CRUCE_DEMANDAS_MMCC_OFICIAL.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        help="Descarga la plantilla con los encabezados correctos"
     )
-st.header("⚖️ Generador de Demandas y Medidas Cautelares")
 
-excel_file = st.file_uploader("📂 Cargar base de datos Excel (.xlsx / .xlsm)", type=["xlsx", "xlsm"])
-plantilla_demanda = st.file_uploader("📄 Cargar plantilla de Demanda (.docx)", type=["docx"])
-plantilla_medidas = st.file_uploader("📄 Cargar plantilla de Medidas Cautelares (.docx)", type=["docx"])
+if not excel_file:
+    st.info("Sube el Excel para habilitar la vista previa y la generación.")
+    st.stop()
 
-if excel_file and plantilla_demanda and plantilla_medidas:
+# ---------- Leer y validar Excel ----------
+try:
     df = pd.read_excel(excel_file)
-    
-    # 🔧 Limpieza de encabezados para evitar espacios o mayúsculas
-    df.columns = [str(c).strip() for c in df.columns]
+except Exception as e:
+    st.error(f"No se pudo leer el Excel: {e}")
+    st.stop()
 
-    st.success(f"Base cargada correctamente: {df.shape[0]} registros.")
-    st.write("🧩 Columnas detectadas:", list(df.columns))
+# No normalizamos: trabajamos con los encabezados tal cual definimos
+faltantes = [c for c in REQUIRED_COLUMNS if c not in list(df.columns)]
+if faltantes:
+    st.error(f"Faltan columnas obligatorias: {faltantes}")
+    st.stop()
 
-    if st.button("⚖️ Generar Demanda y Medidas Cautelares"):
+st.success(f"Base cargada: {df.shape[0]} registros")
+st.dataframe(df.head(3))
+
+# ---------- Selección de tipo y fila para preview/individual ----------
+tipo_doc = st.selectbox("📄 Selecciona el modelo a generar", ["DEMANDA", "MEDIDAS"], index=0)
+
+# para vista previa / individual: elegimos fila por índice
+indices = list(df.index)
+etiquetas = [f"{i} — {df.loc[i, 'NOMBRE']} — CC {df.loc[i, 'CC']}" for i in indices]
+sel_idx = st.selectbox("🔎 Seleccionar registro (para vista previa o descarga individual)", indices, format_func=lambda i: f"{i} — {df.loc[i, 'NOMBRE']} — CC {df.loc[i, 'CC']}")
+
+# ---------- Mapping para preview ----------
+row = df.loc[sel_idx]
+mapping_preview = {
+    "JUZGADO": juzgado_con_reparto(row.get("JUZGADO", "")),
+    "CUANTIA": row.get("CUANTIA", ""),
+    "NOMBRE": row.get("NOMBRE", ""),
+    "CC": row.get("CC", ""),
+    "CIUDAD": row.get("CIUDAD", ""),
+    "PAGARE": row.get("PAGARE", ""),
+    "CAPITAL_EN_LETRAS": row.get("CAPITAL_EN_LETRAS", ""),
+    "CAPITAL": row.get("CAPITAL", ""),
+    "FECHA_VENCIMIENTO": row.get("FECHA_VENCIMIENTO", ""),
+    "FECHA_INTERESES": row.get("FECHA_INTERESES", ""),
+    "DOMICILIO": row.get("DOMICILIO", ""),
+}
+
+render_preview(mapping_preview, tipo_doc)
+
+st.divider()
+
+# ---------- Botones de generación ----------
+c3, c4 = st.columns(2)
+
+with c3:
+    if st.button("📄 Generar documento individual"):
+        # Cargar plantilla correcta
+        tpl_path = TEMPLATE_DEMANDA_PATH if tipo_doc == "DEMANDA" else TEMPLATE_MEDIDAS_PATH
+        try:
+            doc = Document(tpl_path)
+        except Exception as e:
+            st.error(f"No se pudo abrir la plantilla: {tpl_path}\nDetalle: {e}")
+            st.stop()
+
+        replace_placeholders_doc(doc, mapping_preview)
+
+        # Nombre archivo
+        nombre_file = f"{sanitize_filename(mapping_preview['CC'])}_{sanitize_filename(mapping_preview['NOMBRE'])}_{tipo_doc.capitalize()}.docx"
+        bio = io.BytesIO()
+        doc.save(bio)
+        bio.seek(0)
+        st.download_button(
+            "⬇️ Descargar documento",
+            data=bio,
+            file_name=nombre_file,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+with c4:
+    if st.button("📦 Generar TODOS (ZIP)"):
+        # Elegimos plantilla según tipo
+        tpl_path = TEMPLATE_DEMANDA_PATH if tipo_doc == "DEMANDA" else TEMPLATE_MEDIDAS_PATH
+        try:
+            _ = Document(tpl_path)  # validación temprana
+        except Exception as e:
+            st.error(f"No se pudo abrir la plantilla: {tpl_path}\nDetalle: {e}")
+            st.stop()
+
         zip_buffer = io.BytesIO()
-
         with zipfile.ZipFile(zip_buffer, "w") as zf:
-            for _, fila in df.iterrows():
-                # === Variables del Excel ===
-                juzgado_base = str(fila.get("JUZGADO", "")).strip()
-                cuantia = str(fila.get("CUANTÍA", "")).strip()
-                nombre_ddo = str(fila.get("NOMBRE DDO", "")).strip()
-                cc_ddo = str(fila.get("CC DDO", "")).strip()
-                ciudad_domicilio = str(fila.get("CIUDAD DOMICILIO", "")).strip()
-                no_pagare = str(fila.get("NO. PAGARÉ", "")).strip()
-                capital_letras = str(fila.get("CAPITAL EN LETRAS", "")).strip()
-                capital = str(fila.get("CAPITAL", "")).strip()
-                fecha_venc = str(fila.get("FECHA VENCIMIENTO", "")).strip()
-                fecha_int = str(fila.get("FECHA INTERESES", "")).strip()
-                domicilio_pagare = str(fila.get("DOMICILIO PAGARÉ", "")).strip()
-
-                # Limpieza del texto del juzgado y estructura con (REPARTO)
-                juzgado_sin_reparto = juzgado_base.replace("(REPARTO)", "").strip()
-                texto_juzgado = f"{juzgado_sin_reparto}\n(REPARTO)"
-
-                # ===================== DEMANDA =====================
-                doc_dem = Document(plantilla_demanda)
-                for p in doc_dem.paragraphs:
-                    p.text = (p.text
-                        .replace("{{JUZGADO}}", texto_juzgado)
-                        .replace("{{CUANTIA}}", cuantia)
-                        .replace("{{NOMBRE_DDO}}", nombre_ddo)
-                        .replace("{{CC_DDO}}", cc_ddo)
-                        .replace("{{CIUDAD_DOMICILIO}}", ciudad_domicilio)
-                        .replace("{{NO_PAGARE}}", no_pagare)
-                        .replace("{{CAPITAL_LETRAS}}", capital_letras)
-                        .replace("{{CAPITAL}}", capital)
-                        .replace("{{FECHA_VENCIMIENTO}}", fecha_venc)
-                        .replace("{{FECHA_INTERESES}}", fecha_int)
-                        .replace("{{DOMICILIO_PAGARE}}", domicilio_pagare)
-                    )
-
-                out_name_dem = f"{cc_ddo}_{nombre_ddo.replace(' ','_')}_DEMANDA.docx"
-                tmp_dem = io.BytesIO()
-                doc_dem.save(tmp_dem)
-                tmp_dem.seek(0)
-                zf.writestr(out_name_dem, tmp_dem.read())
-
-                # ================== MEDIDAS CAUTELARES ==================
-                doc_med = Document(plantilla_medidas)
-                for p in doc_med.paragraphs:
-                    p.text = (p.text
-                        .replace("{{JUZGADO}}", texto_juzgado)
-                        .replace("{{CUANTIA}}", cuantia)
-                        .replace("{{NOMBRE_DDO}}", nombre_ddo)
-                        .replace("{{CC_DDO}}", cc_ddo)
-                    )
-
-                out_name_med = f"{cc_ddo}_{nombre_ddo.replace(' ','_')}_MEDIDASCAUTELARES.docx"
-                tmp_med = io.BytesIO()
-                doc_med.save(tmp_med)
-                tmp_med.seek(0)
-                zf.writestr(out_name_med, tmp_med.read())
+            for idx, fila in df.iterrows():
+                mapping = {
+                    "JUZGADO": juzgado_con_reparto(fila.get("JUZGADO", "")),
+                    "CUANTIA": fila.get("CUANTIA", ""),
+                    "NOMBRE": fila.get("NOMBRE", ""),
+                    "CC": fila.get("CC", ""),
+                    "CIUDAD": fila.get("CIUDAD", ""),
+                    "PAGARE": fila.get("PAGARE", ""),
+                    "CAPITAL_EN_LETRAS": fila.get("CAPITAL_EN_LETRAS", ""),
+                    "CAPITAL": fila.get("CAPITAL", ""),
+                    "FECHA_VENCIMIENTO": fila.get("FECHA_VENCIMIENTO", ""),
+                    "FECHA_INTERESES": fila.get("FECHA_INTERESES", ""),
+                    "DOMICILIO": fila.get("DOMICILIO", ""),
+                }
+                try:
+                    doc = Document(tpl_path)
+                    replace_placeholders_doc(doc, mapping)
+                    out_name = f"{sanitize_filename(mapping['CC'])}_{sanitize_filename(mapping['NOMBRE'])}_{tipo_doc.capitalize()}.docx"
+                    out_mem = io.BytesIO()
+                    doc.save(out_mem)
+                    out_mem.seek(0)
+                    zf.writestr(out_name, out_mem.read())
+                except Exception as e:
+                    # si una fila falla, seguimos con las demás y reportamos al final
+                    zf.writestr(f"ERROR_FILA_{idx}.txt", f"Error con índice {idx}: {e}")
 
         zip_buffer.seek(0)
-        st.success("✅ Documentos generados correctamente.")
         st.download_button(
-            label="⬇️ Descargar ZIP con todas las demandas y medidas",
+            "⬇️ Descargar ZIP",
             data=zip_buffer,
-            file_name="Documentos_Judiciales.zip",
+            file_name=f"Documentos_{tipo_doc.capitalize()}.zip",
             mime="application/zip"
         )
-else:
-    st.info("Carga el Excel y las dos plantillas para habilitar la generación.")
