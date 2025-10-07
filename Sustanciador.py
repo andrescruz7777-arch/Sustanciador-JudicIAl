@@ -379,7 +379,7 @@ st.markdown("## ⚖️ Generador de Demandas y Medidas Cautelares")
 
 # ---------- Config ----------
 TEMPLATE_DEMANDA_PATH = "FORMATO_DEMANDA_FINAL.docx"
-TEMPLATE_MEDIDAS_PATH = "FORMATO_ SOLICITUD_MEDIDAS_FINAL.docx"  # corregido
+TEMPLATE_MEDIDAS_PATH = "FORMATO_SOLICITUD_MEDIDAS_FINAL.docx"  # corregido
 
 REQUIRED_COLUMNS = [
     "CC", "NOMBRE", "VALIDACION", "PAGARE",
@@ -405,8 +405,14 @@ def sanitize_filename(s: str) -> str:
     return s
 
 def juzgado_con_reparto(juzgado_text: str) -> str:
+    """
+    Limpia el texto del juzgado y garantiza que solo haya un (REPARTO),
+    en la línea siguiente, sin duplicados.
+    """
     jt = str(juzgado_text or "").strip()
-    jt_clean = jt.replace("(REPARTO)", "").strip()
+    # Eliminar cualquier "(REPARTO)" que venga en el texto original
+    jt_clean = re.sub(r"\(REPARTO\)", "", jt, flags=re.IGNORECASE).strip()
+    # Agregar solo una vez la línea (REPARTO)
     return f"{jt_clean}\n(REPARTO)"
 
 def replace_placeholders_doc(doc: Document, mapping: dict):
@@ -485,6 +491,7 @@ if "CAPITAL" in df.columns:
             .replace("", "0")
             .astype(float)
         )
+        # Formato de moneda sin COP
         df["CAPITAL"] = df["CAPITAL"].apply(lambda x: f"${x:,.0f}".replace(",", "."))
     except Exception as e:
         st.warning(f"No se pudo formatear la columna CAPITAL: {e}")
@@ -505,11 +512,11 @@ sel_idx = st.selectbox(
 # ---------- Mapping para preview ----------
 row = df.loc[sel_idx]
 
-# 💰 Formato de capital para Word
+# 💰 Formato de capital solo moneda (sin COP)
 capital_val = row.get("CAPITAL", "")
 try:
     num = float(str(capital_val).replace("$", "").replace(".", "").replace(",", "."))
-    capital_fmt = f"${num:,.0f} COP".replace(",", ".")
+    capital_fmt = f"${num:,.0f}".replace(",", ".")
 except:
     capital_fmt = str(capital_val)
 
@@ -521,7 +528,7 @@ mapping_preview = {
     "CIUDAD": row.get("CIUDAD", ""),
     "PAGARE": row.get("PAGARE", ""),
     "CAPITAL_EN_LETRAS": row.get("CAPITAL_EN_LETRAS", ""),
-    "CAPITAL": capital_fmt,  # 💰 ahora sale como $1.200.000 COP
+    "CAPITAL": capital_fmt,  # 💰 sin COP
     "FECHA_VENCIMIENTO": row.get("FECHA_VENCIMIENTO", ""),
     "FECHA_INTERESES": row.get("FECHA_INTERESES", ""),
     "DOMICILIO": row.get("DOMICILIO", ""),
@@ -567,11 +574,11 @@ with c4:
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zf:
             for idx, fila in df.iterrows():
-                # 💰 Formatear capital fila a pesos COP
+                # 💰 Formatear capital fila a pesos sin COP
                 capital_val = fila.get("CAPITAL", "")
                 try:
                     num = float(str(capital_val).replace("$", "").replace(".", "").replace(",", "."))
-                    capital_fmt = f"${num:,.0f} COP".replace(",", ".")
+                    capital_fmt = f"${num:,.0f}".replace(",", ".")
                 except:
                     capital_fmt = str(capital_val)
 
@@ -583,7 +590,7 @@ with c4:
                     "CIUDAD": fila.get("CIUDAD", ""),
                     "PAGARE": fila.get("PAGARE", ""),
                     "CAPITAL_EN_LETRAS": fila.get("CAPITAL_EN_LETRAS", ""),
-                    "CAPITAL": capital_fmt,  # 💰 con formato moneda
+                    "CAPITAL": capital_fmt,  # 💰 sin COP
                     "FECHA_VENCIMIENTO": fila.get("FECHA_VENCIMIENTO", ""),
                     "FECHA_INTERESES": fila.get("FECHA_INTERESES", ""),
                     "DOMICILIO": fila.get("DOMICILIO", ""),
