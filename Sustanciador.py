@@ -379,7 +379,7 @@ st.markdown("## ⚖️ Generador de Demandas y Medidas Cautelares")
 
 # ---------- Config ----------
 TEMPLATE_DEMANDA_PATH = "FORMATO_DEMANDA_FINAL.docx"
-TEMPLATE_MEDIDAS_PATH = "FORMATO_ SOLICITUD_MEDIDAS_FINAL.docx"
+TEMPLATE_MEDIDAS_PATH = "FORMATO_SOLICITUD_MEDIDAS_FINAL.docx"  # corregido
 
 REQUIRED_COLUMNS = [
     "CC", "NOMBRE", "VALIDACION", "PAGARE",
@@ -389,6 +389,7 @@ REQUIRED_COLUMNS = [
     "DOMICILIO", "CIUDAD",
 ]
 
+# ---------- Funciones auxiliares ----------
 def make_excel_template_bytes():
     df = pd.DataFrame(columns=REQUIRED_COLUMNS)
     bio = io.BytesIO()
@@ -405,29 +406,18 @@ def sanitize_filename(s: str) -> str:
 
 def juzgado_con_reparto(juzgado_text: str) -> str:
     jt = str(juzgado_text or "").strip()
-    # separar "(REPARTO)" a la línea de abajo (evitar duplicados)
     jt_clean = jt.replace("(REPARTO)", "").strip()
     return f"{jt_clean}\n(REPARTO)"
 
 def replace_placeholders_doc(doc: Document, mapping: dict):
-    """
-    Reemplaza placeholders {CLAVE} tanto en párrafos como en tablas.
-    Mantiene el contenido y estilos generales de tablas y estructura.
-    Nota: en párrafos con runs, si un placeholder está partido en varios runs,
-    esta estrategia hace un join por párrafo para garantizar el reemplazo.
-    """
-    # Párrafos
+    """Reemplaza placeholders {CLAVE} tanto en párrafos como en tablas."""
     for p in doc.paragraphs:
-        if not mapping:
-            continue
-        # recomponer el texto del párrafo completo para asegurar reemplazo 1:1
         txt = p.text
         for k, v in mapping.items():
             txt = txt.replace(f"{{{k}}}", str(v))
         if txt != p.text:
             p.text = txt
 
-    # Tablas (por si tu plantilla tiene encabezados o celdas con placeholders)
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
@@ -440,7 +430,6 @@ def replace_placeholders_doc(doc: Document, mapping: dict):
 
 def render_preview(mapping: dict, tipo: str):
     st.markdown("#### 👀 Vista previa (fragmento)")
-    # Mostramos un resumen textual con los campos clave ya reemplazados
     j = str(mapping.get("JUZGADO", "")).split("\n")
     j1 = j[0] if j else ""
     st.code(
@@ -481,11 +470,24 @@ except Exception as e:
     st.error(f"No se pudo leer el Excel: {e}")
     st.stop()
 
-# No normalizamos: trabajamos con los encabezados tal cual definimos
 faltantes = [c for c in REQUIRED_COLUMNS if c not in list(df.columns)]
 if faltantes:
     st.error(f"Faltan columnas obligatorias: {faltantes}")
     st.stop()
+
+# 🔹 Conversión automática de CAPITAL a formato moneda
+if "CAPITAL" in df.columns:
+    try:
+        df["CAPITAL"] = (
+            df["CAPITAL"]
+            .astype(str)
+            .replace({r"[\$,]": "", r"\.": ""}, regex=True)
+            .replace("", "0")
+            .astype(float)
+        )
+        df["CAPITAL"] = df["CAPITAL"].apply(lambda x: f"${x:,.0f}".replace(",", "."))
+    except Exception as e:
+        st.warning(f"No se pudo formatear la columna CAPITAL: {e}")
 
 st.success(f"Base cargada: {df.shape[0]} registros")
 st.dataframe(df.head(3))
@@ -493,13 +495,24 @@ st.dataframe(df.head(3))
 # ---------- Selección de tipo y fila para preview/individual ----------
 tipo_doc = st.selectbox("📄 Selecciona el modelo a generar", ["DEMANDA", "MEDIDAS"], index=0)
 
-# para vista previa / individual: elegimos fila por índice
 indices = list(df.index)
-etiquetas = [f"{i} — {df.loc[i, 'NOMBRE']} — CC {df.loc[i, 'CC']}" for i in indices]
-sel_idx = st.selectbox("🔎 Seleccionar registro (para vista previa o descarga individual)", indices, format_func=lambda i: f"{i} — {df.loc[i, 'NOMBRE']} — CC {df.loc[i, 'CC']}")
+sel_idx = st.selectbox(
+    "🔎 Seleccionar registro (para vista previa o descarga individual)",
+    indices,
+    format_func=lambda i: f"{i} — {df.loc[i, 'NOMBRE']} — CC {df.loc[i, 'CC']}"
+)
 
 # ---------- Mapping para preview ----------
 row = df.loc[sel_idx]
+
+# 💰 Formato de capital para Word
+capital_val = row.get("CAPITAL", "")
+try:
+    num = float(str(capital_val).replace("$", "").replace(".", "").replace(",", "."))
+    capital_fmt = f"${num:,.0f} COP".replace(",", ".")
+except:
+    capital_fmt = str(capital_val)
+
 mapping_preview = {
     "JUZGADO": juzgado_con_reparto(row.get("JUZGADO", "")),
     "CUANTIA": row.get("CUANTIA", ""),
@@ -508,14 +521,13 @@ mapping_preview = {
     "CIUDAD": row.get("CIUDAD", ""),
     "PAGARE": row.get("PAGARE", ""),
     "CAPITAL_EN_LETRAS": row.get("CAPITAL_EN_LETRAS", ""),
-    "CAPITAL": row.get("CAPITAL", ""),
+    "CAPITAL": capital_fmt,  # 💰 ahora sale como $1.200.000 COP
     "FECHA_VENCIMIENTO": row.get("FECHA_VENCIMIENTO", ""),
     "FECHA_INTERESES": row.get("FECHA_INTERESES", ""),
     "DOMICILIO": row.get("DOMICILIO", ""),
 }
 
 render_preview(mapping_preview, tipo_doc)
-
 st.divider()
 
 # ---------- Botones de generación ----------
@@ -523,7 +535,6 @@ c3, c4 = st.columns(2)
 
 with c3:
     if st.button("📄 Generar documento individual"):
-        # Cargar plantilla correcta
         tpl_path = TEMPLATE_DEMANDA_PATH if tipo_doc == "DEMANDA" else TEMPLATE_MEDIDAS_PATH
         try:
             doc = Document(tpl_path)
@@ -533,7 +544,6 @@ with c3:
 
         replace_placeholders_doc(doc, mapping_preview)
 
-        # Nombre archivo
         nombre_file = f"{sanitize_filename(mapping_preview['CC'])}_{sanitize_filename(mapping_preview['NOMBRE'])}_{tipo_doc.capitalize()}.docx"
         bio = io.BytesIO()
         doc.save(bio)
@@ -544,12 +554,12 @@ with c3:
             file_name=nombre_file,
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
 with c4:
     if st.button("📦 Generar TODOS (ZIP)"):
-        # Elegimos plantilla según tipo
         tpl_path = TEMPLATE_DEMANDA_PATH if tipo_doc == "DEMANDA" else TEMPLATE_MEDIDAS_PATH
         try:
-            _ = Document(tpl_path)  # validación temprana
+            _ = Document(tpl_path)
         except Exception as e:
             st.error(f"No se pudo abrir la plantilla: {tpl_path}\nDetalle: {e}")
             st.stop()
@@ -557,6 +567,14 @@ with c4:
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zf:
             for idx, fila in df.iterrows():
+                # 💰 Formatear capital fila a pesos COP
+                capital_val = fila.get("CAPITAL", "")
+                try:
+                    num = float(str(capital_val).replace("$", "").replace(".", "").replace(",", "."))
+                    capital_fmt = f"${num:,.0f} COP".replace(",", ".")
+                except:
+                    capital_fmt = str(capital_val)
+
                 mapping = {
                     "JUZGADO": juzgado_con_reparto(fila.get("JUZGADO", "")),
                     "CUANTIA": fila.get("CUANTIA", ""),
@@ -565,11 +583,12 @@ with c4:
                     "CIUDAD": fila.get("CIUDAD", ""),
                     "PAGARE": fila.get("PAGARE", ""),
                     "CAPITAL_EN_LETRAS": fila.get("CAPITAL_EN_LETRAS", ""),
-                    "CAPITAL": fila.get("CAPITAL", ""),
+                    "CAPITAL": capital_fmt,  # 💰 con formato moneda
                     "FECHA_VENCIMIENTO": fila.get("FECHA_VENCIMIENTO", ""),
                     "FECHA_INTERESES": fila.get("FECHA_INTERESES", ""),
                     "DOMICILIO": fila.get("DOMICILIO", ""),
                 }
+
                 try:
                     doc = Document(tpl_path)
                     replace_placeholders_doc(doc, mapping)
@@ -579,7 +598,6 @@ with c4:
                     out_mem.seek(0)
                     zf.writestr(out_name, out_mem.read())
                 except Exception as e:
-                    # si una fila falla, seguimos con las demás y reportamos al final
                     zf.writestr(f"ERROR_FILA_{idx}.txt", f"Error con índice {idx}: {e}")
 
         zip_buffer.seek(0)
