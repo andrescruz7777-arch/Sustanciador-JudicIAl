@@ -407,12 +407,14 @@ def sanitize_filename(s: str) -> str:
 def juzgado_con_reparto(juzgado_text: str) -> str:
     """
     Limpia el texto del juzgado y garantiza que solo haya un (REPARTO),
-    en la línea siguiente, sin duplicados.
+    en la línea siguiente, sin duplicados ni repeticiones.
     """
     jt = str(juzgado_text or "").strip()
-    # Eliminar cualquier "(REPARTO)" que venga en el texto original
+    # Quitar cualquier "(REPARTO)" existente en el texto original
     jt_clean = re.sub(r"\(REPARTO\)", "", jt, flags=re.IGNORECASE).strip()
-    # Agregar solo una vez la línea (REPARTO)
+    # Si ya tiene la palabra reparto, no la duplicamos
+    if "REPARTO" in jt.upper():
+        return jt_clean
     return f"{jt_clean}\n(REPARTO)"
 
 def replace_placeholders_doc(doc: Document, mapping: dict):
@@ -491,7 +493,7 @@ if "CAPITAL" in df.columns:
             .replace("", "0")
             .astype(float)
         )
-        # Formato de moneda sin COP
+        # Formato de moneda limpio sin "COP"
         df["CAPITAL"] = df["CAPITAL"].apply(lambda x: f"${x:,.0f}".replace(",", "."))
     except Exception as e:
         st.warning(f"No se pudo formatear la columna CAPITAL: {e}")
@@ -528,7 +530,7 @@ mapping_preview = {
     "CIUDAD": row.get("CIUDAD", ""),
     "PAGARE": row.get("PAGARE", ""),
     "CAPITAL_EN_LETRAS": row.get("CAPITAL_EN_LETRAS", ""),
-    "CAPITAL": capital_fmt,  # 💰 sin COP
+    "CAPITAL": capital_fmt,
     "FECHA_VENCIMIENTO": row.get("FECHA_VENCIMIENTO", ""),
     "FECHA_INTERESES": row.get("FECHA_INTERESES", ""),
     "DOMICILIO": row.get("DOMICILIO", ""),
@@ -590,7 +592,7 @@ with c4:
                     "CIUDAD": fila.get("CIUDAD", ""),
                     "PAGARE": fila.get("PAGARE", ""),
                     "CAPITAL_EN_LETRAS": fila.get("CAPITAL_EN_LETRAS", ""),
-                    "CAPITAL": capital_fmt,  # 💰 sin COP
+                    "CAPITAL": capital_fmt,
                     "FECHA_VENCIMIENTO": fila.get("FECHA_VENCIMIENTO", ""),
                     "FECHA_INTERESES": fila.get("FECHA_INTERESES", ""),
                     "DOMICILIO": fila.get("DOMICILIO", ""),
