@@ -379,7 +379,7 @@ st.markdown("## ⚖️ Generador de Demandas y Medidas Cautelares")
 
 # ---------- Config ----------
 TEMPLATE_DEMANDA_PATH = "FORMATO_DEMANDA_FINAL.docx"
-TEMPLATE_MEDIDAS_PATH = "FORMATO_SOLICITUD_MEDIDAS_FINAL.docx"
+TEMPLATE_MEDIDAS_PATH = "FORMATO_ SOLICITUD_MEDIDAS_FINAL.docx"
 
 REQUIRED_COLUMNS = [
     "CC", "NOMBRE", "VALIDACION", "PAGARE",
