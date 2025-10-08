@@ -22,7 +22,7 @@ st.title("⚖️ COS JudicIA — Módulos Judiciales Automatizados")
 tab1, tab2 = st.tabs(["⚙️ Sustanciador Judicial", "📄 Demandas y Medidas Cautelares"])
 
 # ============================================================
-# 🧩 TAB 1 — Sustanciador Judicial (con ZIP masivo)
+# 🧩 TAB 1 — Sustanciador Judicial (actualizado)
 # ============================================================
 with tab1:
     st.header("⚙️ Sustanciador Judicial")
@@ -38,12 +38,15 @@ with tab1:
         return strip_accents(s or "").lower()
 
     def parse_ddmmyyyy(s: str):
+        """Convierte fechas tipo dd/mm/yyyy o similares en objeto datetime."""
         if not isinstance(s, str):
             return None
-        m = re.search(r"\b(\d{2})[/-](\d{2})[/-](\d{4})\b", s)
+        m = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b", s)
         if not m:
             return None
         dd, mm, yyyy = m.groups()
+        if len(yyyy) == 2:
+            yyyy = f"20{yyyy}"
         try:
             return datetime(int(yyyy), int(mm), int(dd))
         except Exception:
@@ -147,13 +150,14 @@ with tab1:
         st.success(f"Base cargada: {df.shape[0]} filas")
         st.dataframe(df.head(5))
 
+        # Aliases comunes
         aliases = {
             'A': ['CC', 'Cédula', 'Documento'],
             'B': ['Nombre', 'Demandado'],
             'H': ['Juzgado'],
             'J': ['Correo', 'CorreoJuzgado'],
             'I': ['Radicado'],
-            'O': ['FechaPresentacionDDA'],
+            'O': ['FECHA DE PRESENTACIÓN DDA', 'FechaPresentacionDDA'],
             'AF': ['Cuaderno Principal']
         }
 
@@ -166,10 +170,8 @@ with tab1:
                     break
 
         subetapa = st.selectbox("Subetapa", SUBETAPAS)
-
-        # Generación individual
-        indices = df.index.tolist()
-        sel_idx = st.selectbox("Registro", indices, format_func=lambda i: f"{df.loc[i, col_map.get('B')]} - {df.loc[i, col_map.get('I')]}")
+        opciones = df.index.tolist()
+        sel_idx = st.selectbox("Registro", opciones, format_func=lambda i: f"{df.loc[i, col_map.get('B')]} - {df.loc[i, col_map.get('I')]}")
 
         def generar_doc(row):
             cc = str(row.get(col_map.get('A'), ''))
@@ -188,48 +190,43 @@ with tab1:
             af_col = col_map.get('AF')
             o_col = col_map.get('O')
 
-            fecha_dt = None
+            # ====== Reemplazos por subetapa ======
             if subetapa == "Mandamiento" and af_col:
                 fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), MANDAMIENTO_KEYS)
                 if fecha_dt:
                     replace_date_pattern(doc, "el pasado", PATTERN_PASADO, f"el pasado {format_fecha_dd_de_mm_de_yyyy(fecha_dt)}")
+
             elif subetapa == "Sentencia" and af_col:
                 fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), SENTENCIA_KEYS)
                 if fecha_dt:
                     replace_date_pattern(doc, "el pasado", PATTERN_PASADO, f"el pasado {format_fecha_dd_de_mm_de_yyyy(fecha_dt)}")
+
             elif subetapa == "Calificacion" and o_col:
                 raw_fecha = row.get(o_col)
-                
-    # Permite manejar fechas tipo datetime o texto
-        if isinstance(raw_fecha, datetime):
-        fecha_dt = raw_fecha
-    else:
-        fecha_dt = parse_ddmmyyyy(str(raw_fecha))
-        if fecha_dt:
-        fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-        replace_date_pattern(
-            doc,
-            "radicada el",
-            PATTERN_RADICADA,
-            f"radicada el día {fecha_str}"
-        )
+                # Soporta fecha tipo datetime o string
+                if isinstance(raw_fecha, datetime):
+                    fecha_dt = raw_fecha
+                else:
+                    fecha_dt = parse_ddmmyyyy(str(raw_fecha))
+                if fecha_dt:
+                    fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
+                    replace_date_pattern(doc, "radicada el", PATTERN_RADICADA, f"radicada el día {fecha_str}")
 
             return doc, cc, nombre
 
+        # === Generación individual ===
         row = df.loc[sel_idx]
         doc, cc, nombre = generar_doc(row)
-
         st.subheader("Vista previa")
         st.text_area("Contenido", doc_to_preview_text(doc), height=300)
 
-        # Descargar individual
         out_name = f"{sanitize_filename(cc)}_{sanitize_filename(nombre)}_{subetapa}.docx"
         bio = io.BytesIO()
         doc.save(bio)
         bio.seek(0)
         st.download_button("⬇️ Descargar documento", data=bio, file_name=out_name, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
-        # Generación masiva
+        # === Generación masiva ===
         st.divider()
         st.markdown("### 📦 Generación masiva (ZIP)")
         st.write("Genera todos los documentos de la base en un archivo ZIP.")
