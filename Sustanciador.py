@@ -22,7 +22,7 @@ st.title("⚖️ COS JudicIA — Módulos Judiciales Automatizados")
 tab1, tab2 = st.tabs(["⚙️ Sustanciador Judicial", "📄 Demandas y Medidas Cautelares"])
 
 # ============================================================
-# 🧩 TAB 1 — Sustanciador Judicial
+# 🧩 TAB 1 — Sustanciador Judicial (con ZIP masivo)
 # ============================================================
 with tab1:
     st.header("⚙️ Sustanciador Judicial")
@@ -143,12 +143,7 @@ with tab1:
     excel_file = st.file_uploader("Sube el archivo Excel con la precarga", type=["xlsx", "xls"])
 
     if excel_file:
-        try:
-            df = pd.read_excel(excel_file)
-        except Exception as e:
-            st.error(f"No se pudo leer el Excel: {e}")
-            st.stop()
-
+        df = pd.read_excel(excel_file)
         st.success(f"Base cargada: {df.shape[0]} filas")
         st.dataframe(df.head(5))
 
@@ -171,60 +166,82 @@ with tab1:
                     break
 
         subetapa = st.selectbox("Subetapa", SUBETAPAS)
-        opciones = df.index.tolist()
-        sel_idx = st.selectbox("Registro", opciones, format_func=lambda i: f"{df.loc[i, col_map.get('B')]} - {df.loc[i, col_map.get('I')]}")
+
+        # Generación individual
+        indices = df.index.tolist()
+        sel_idx = st.selectbox("Registro", indices, format_func=lambda i: f"{df.loc[i, col_map.get('B')]} - {df.loc[i, col_map.get('I')]}")
+
+        def generar_doc(row):
+            cc = str(row.get(col_map.get('A'), ''))
+            nombre = str(row.get(col_map.get('B'), ''))
+            juzgado = str(row.get(col_map.get('H'), ''))
+            correo = str(row.get(col_map.get('J'), ''))
+            radicado = str(row.get(col_map.get('I'), ''))
+
+            doc = Document(TEMPLATES[subetapa])
+            replace_line_contains(doc, "JUZGADO", juzgado)
+            replace_line_contains(doc, "@", correo)
+            replace_after_label(doc, "RAD", radicado)
+            replace_after_label(doc, "DEMANDANTE", "BANCO GNB SUDAMERIS S.A")
+            replace_after_label(doc, "DEMANDADO", f"CC {cc} {nombre}")
+
+            af_col = col_map.get('AF')
+            o_col = col_map.get('O')
+
+            fecha_dt = None
+            if subetapa == "Mandamiento" and af_col:
+                fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), MANDAMIENTO_KEYS)
+                if fecha_dt:
+                    replace_date_pattern(doc, "el pasado", PATTERN_PASADO, f"el pasado {format_fecha_dd_de_mm_de_yyyy(fecha_dt)}")
+            elif subetapa == "Sentencia" and af_col:
+                fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), SENTENCIA_KEYS)
+                if fecha_dt:
+                    replace_date_pattern(doc, "el pasado", PATTERN_PASADO, f"el pasado {format_fecha_dd_de_mm_de_yyyy(fecha_dt)}")
+            elif subetapa == "Calificacion" and o_col:
+                fecha_dt = parse_ddmmyyyy(str(row.get(o_col)))
+                if fecha_dt:
+                    replace_date_pattern(doc, "radicada el", PATTERN_RADICADA, f"radicada el día {format_fecha_dd_de_mm_de_yyyy(fecha_dt)}")
+
+            return doc, cc, nombre
 
         row = df.loc[sel_idx]
-
-        cc = str(row.get(col_map.get('A'), ''))
-        nombre = str(row.get(col_map.get('B'), ''))
-        juzgado = str(row.get(col_map.get('H'), ''))
-        correo = str(row.get(col_map.get('J'), ''))
-        radicado = str(row.get(col_map.get('I'), ''))
-
-        try:
-            doc = Document(TEMPLATES[subetapa])
-        except Exception as e:
-            st.error(f"No se pudo abrir la plantilla: {e}")
-            st.stop()
-
-        replace_line_contains(doc, "JUZGADO", juzgado)
-        replace_line_contains(doc, "@", correo)
-        replace_after_label(doc, "RAD", radicado)
-        replace_after_label(doc, "DEMANDANTE", "BANCO GNB SUDAMERIS S.A")
-        replace_after_label(doc, "DEMANDADO", f"CC {cc} {nombre}")
-
-        if subetapa == "Mandamiento":
-            af_col = col_map.get('AF')
-            fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), MANDAMIENTO_KEYS) if af_col else None
-            if fecha_dt:
-                fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                replace_date_pattern(doc, "el pasado", PATTERN_PASADO, f"el pasado {fecha_str}")
-
-        elif subetapa == "Sentencia":
-            af_col = col_map.get('AF')
-            fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), SENTENCIA_KEYS) if af_col else None
-            if fecha_dt:
-                fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                replace_date_pattern(doc, "el pasado", PATTERN_PASADO, f"el pasado {fecha_str}")
-
-        elif subetapa == "Calificacion":
-            o_col = col_map.get('O')
-            fecha_dt = parse_ddmmyyyy(str(row.get(o_col))) if o_col else None
-            if fecha_dt:
-                fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                replace_date_pattern(doc, "radicada el", PATTERN_RADICADA, f"radicada el día {fecha_str}")
+        doc, cc, nombre = generar_doc(row)
 
         st.subheader("Vista previa")
         st.text_area("Contenido", doc_to_preview_text(doc), height=300)
 
+        # Descargar individual
         out_name = f"{sanitize_filename(cc)}_{sanitize_filename(nombre)}_{subetapa}.docx"
         bio = io.BytesIO()
         doc.save(bio)
         bio.seek(0)
-        st.download_button("⬇️ Descargar documento", data=bio, file_name=out_name,
-                           mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        st.download_button("⬇️ Descargar documento", data=bio, file_name=out_name, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
+        # Generación masiva
+        st.divider()
+        st.markdown("### 📦 Generación masiva (ZIP)")
+        st.write("Genera todos los documentos de la base en un archivo ZIP.")
+
+        if st.button("📦 Generar TODOS (ZIP)"):
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zf:
+                for idx, fila in df.iterrows():
+                    try:
+                        doc, cc, nombre = generar_doc(fila)
+                        out_name = f"{sanitize_filename(cc)}_{sanitize_filename(nombre)}_{subetapa}.docx"
+                        out_mem = io.BytesIO()
+                        doc.save(out_mem)
+                        out_mem.seek(0)
+                        zf.writestr(out_name, out_mem.read())
+                    except Exception as e:
+                        zf.writestr(f"ERROR_FILA_{idx}.txt", f"Error en fila {idx}: {e}")
+            zip_buffer.seek(0)
+            st.download_button(
+                "⬇️ Descargar ZIP con todos los documentos",
+                data=zip_buffer,
+                file_name=f"Documentos_{subetapa}.zip",
+                mime="application/zip"
+            )
 # ============================================================
 # 🧩 TAB 2 — Generador de Demandas y Medidas Cautelares
 # ============================================================
