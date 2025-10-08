@@ -198,9 +198,20 @@ with tab1:
                 if fecha_dt:
                     replace_date_pattern(doc, "el pasado", PATTERN_PASADO, f"el pasado {format_fecha_dd_de_mm_de_yyyy(fecha_dt)}")
             elif subetapa == "Calificacion" and o_col:
-                fecha_dt = parse_ddmmyyyy(str(row.get(o_col)))
-                if fecha_dt:
-                    replace_date_pattern(doc, "radicada el", PATTERN_RADICADA, f"radicada el día {format_fecha_dd_de_mm_de_yyyy(fecha_dt)}")
+    raw_fecha = row.get(o_col)
+    # Permite manejar fechas tipo datetime o texto
+    if isinstance(raw_fecha, datetime):
+        fecha_dt = raw_fecha
+    else:
+        fecha_dt = parse_ddmmyyyy(str(raw_fecha))
+    if fecha_dt:
+        fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
+        replace_date_pattern(
+            doc,
+            "radicada el",
+            PATTERN_RADICADA,
+            f"radicada el día {fecha_str}"
+        )
 
             return doc, cc, nombre
 
