@@ -25,7 +25,6 @@ tab1, tab2 = st.tabs(["⚙️ Sustanciador Judicial", "📄 Demandas y Medidas C
 # 🧩 TAB 1 — Sustanciador Judicial
 # ============================================================
 with tab1:
-
     st.header("⚙️ Sustanciador Judicial")
     st.caption("Genera memoriales desde plantillas .docx basadas en datos de Excel.")
 
@@ -140,7 +139,7 @@ with tab1:
     PATTERN_RADICADA = r"radicada\s+el\s+d[ií]a\s+\S+\s+de\s+\S+\s+de\s+\S+"
 
     # ---------- UI Sustanciador ----------
-    st.subheader("1) Carga la base en Excel")
+    st.subheader("1️⃣ Carga la base en Excel")
     excel_file = st.file_uploader("Sube el archivo Excel con la precarga", type=["xlsx", "xls"])
 
     if excel_file:
@@ -232,6 +231,7 @@ with tab1:
 with tab2:
     st.header("📄 Generador de Demandas y Medidas Cautelares")
 
+    # OJO: el nombre tiene un espacio en el archivo original del usuario
     TEMPLATE_DEMANDA_PATH = "FORMATO_DEMANDA_FINAL.docx"
     TEMPLATE_MEDIDAS_PATH = "FORMATO_ SOLICITUD_MEDIDAS_FINAL.docx"
 
@@ -289,60 +289,59 @@ with tab2:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-    if not excel_file:
-        st.info("Sube el Excel para continuar.")
-        st.stop()
+    if excel_file:
+        try:
+            df = pd.read_excel(excel_file)
+        except Exception as e:
+            st.error(f"No se pudo leer el Excel: {e}")
+            st.stop()
 
-    try:
-        df = pd.read_excel(excel_file)
-    except Exception as e:
-        st.error(f"No se pudo leer el Excel: {e}")
-        st.stop()
+        faltantes = [c for c in REQUIRED_COLUMNS if c not in list(df.columns)]
+        if faltantes:
+            st.error(f"Faltan columnas: {faltantes}")
+        else:
+            # 💰 Formato moneda (solo valor, sin 'COP')
+            try:
+                df["CAPITAL"] = (
+                    df["CAPITAL"]
+                    .astype(str)
+                    .replace({r"[\$,]": "", r"\.": ""}, regex=True)
+                    .replace("", "0")
+                    .astype(float)
+                )
+                df["CAPITAL"] = df["CAPITAL"].apply(lambda x: f"${x:,.0f}".replace(",", "."))
+            except Exception as e:
+                st.warning(f"No se pudo formatear CAPITAL: {e}")
 
-    faltantes = [c for c in REQUIRED_COLUMNS if c not in list(df.columns)]
-    if faltantes:
-        st.error(f"Faltan columnas: {faltantes}")
-        st.stop()
+            st.success(f"Base cargada: {df.shape[0]} registros")
+            st.dataframe(df.head(3))
 
-    # 💰 Formato moneda
-    try:
-        df["CAPITAL"] = (
-            df["CAPITAL"]
-            .astype(str)
-            .replace({r"[\$,]": "", r"\.": ""}, regex=True)
-            .replace("", "0")
-            .astype(float)
-        )
-        df["CAPITAL"] = df["CAPITAL"].apply(lambda x: f"${x:,.0f}".replace(",", "."))
-    except Exception as e:
-        st.warning(f"No se pudo formatear CAPITAL: {e}")
+            tipo_doc = st.selectbox("📄 Modelo a generar", ["DEMANDA", "MEDIDAS"])
+            indices = list(df.index)
+            sel_idx = st.selectbox(
+                "🔎 Registro individual",
+                indices,
+                format_func=lambda i: f"{i} — {df.loc[i, 'NOMBRE']} — CC {df.loc[i, 'CC']}"
+            )
 
-    st.success(f"Base cargada: {df.shape[0]} registros")
-    st.dataframe(df.head(3))
+            row = df.loc[sel_idx]
 
-    tipo_doc = st.selectbox("📄 Modelo a generar", ["DEMANDA", "MEDIDAS"])
-    indices = list(df.index)
-    sel_idx = st.selectbox("🔎 Registro individual", indices,
-                           format_func=lambda i: f"{i} — {df.loc[i, 'NOMBRE']} — CC {df.loc[i, 'CC']}")
+            mapping_preview = {
+                "JUZGADO": juzgado_con_reparto(row.get("JUZGADO", "")),
+                "CUANTIA": row.get("CUANTIA", ""),
+                "NOMBRE": row.get("NOMBRE", ""),
+                "CC": row.get("CC", ""),
+                "CIUDAD": row.get("CIUDAD", ""),
+                "PAGARE": row.get("PAGARE", ""),
+                "CAPITAL_EN_LETRAS": row.get("CAPITAL_EN_LETRAS", ""),
+                "CAPITAL": row.get("CAPITAL", ""),
+                "FECHA_VENCIMIENTO": row.get("FECHA_VENCIMIENTO", ""),
+                "FECHA_INTERESES": row.get("FECHA_INTERESES", ""),
+                "DOMICILIO": row.get("DOMICILIO", ""),
+            }
 
-    row = df.loc[sel_idx]
-
-    mapping_preview = {
-        "JUZGADO": juzgado_con_reparto(row.get("JUZGADO", "")),
-        "CUANTIA": row.get("CUANTIA", ""),
-        "NOMBRE": row.get("NOMBRE", ""),
-        "CC": row.get("CC", ""),
-        "CIUDAD": row.get("CIUDAD", ""),
-        "PAGARE": row.get("PAGARE", ""),
-        "CAPITAL_EN_LETRAS": row.get("CAPITAL_EN_LETRAS", ""),
-        "CAPITAL": row.get("CAPITAL", ""),
-        "FECHA_VENCIMIENTO": row.get("FECHA_VENCIMIENTO", ""),
-        "FECHA_INTERESES": row.get("FECHA_INTERESES", ""),
-        "DOMICILIO": row.get("DOMICILIO", ""),
-    }
-
-    st.markdown("#### 👀 Vista previa")
-    st.code(
+            st.markdown("#### 👀 Vista previa")
+            st.code(
 f"""Señor:
 {mapping_preview.get("JUZGADO", "").splitlines()[0]}
 (REPARTO)
@@ -353,50 +352,57 @@ DEMANDANTE : BANCO GNB SUDAMERIS S.A.
 DEMANDADO : {mapping_preview.get("NOMBRE","")} CC {mapping_preview.get("CC","")}
 """, language="markdown")
 
-    # ---------- Generar individual ----------
-    if st.button("📄 Generar documento individual"):
-        tpl_path = TEMPLATE_DEMANDA_PATH if tipo_doc == "DEMANDA" else TEMPLATE_MEDIDAS_PATH
-        doc = Document(tpl_path)
-        replace_placeholders_doc(doc, mapping_preview)
-        out_name = f"{sanitize_filename(mapping_preview['CC'])}_{sanitize_filename(mapping_preview['NOMBRE'])}_{tipo_doc}.docx"
-        bio = io.BytesIO()
-        doc.save(bio)
-        bio.seek(0)
-        st.download_button("⬇️ Descargar documento", data=bio,
-                           file_name=out_name,
-                           mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            # ---------- Generar individual ----------
+            if st.button("📄 Generar documento individual"):
+                tpl_path = TEMPLATE_DEMANDA_PATH if tipo_doc == "DEMANDA" else TEMPLATE_MEDIDAS_PATH
+                doc = Document(tpl_path)
+                replace_placeholders_doc(doc, mapping_preview)
+                out_name = f"{sanitize_filename(mapping_preview['CC'])}_{sanitize_filename(mapping_preview['NOMBRE'])}_{tipo_doc}.docx"
+                bio = io.BytesIO()
+                doc.save(bio)
+                bio.seek(0)
+                st.download_button("⬇️ Descargar documento", data=bio,
+                                   file_name=out_name,
+                                   mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
-    # ---------- Generar masivamente (ZIP) ----------
-    if st.button("📦 Generar TODOS (ZIP)"):
-        tpl_path = TEMPLATE_DEMANDA_PATH if tipo_doc == "DEMANDA" else TEMPLATE_MEDIDAS_PATH
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zf:
-            for idx, fila in df.iterrows():
-                mapping = {
-                    "JUZGADO": juzgado_con_reparto(fila.get("JUZGADO", "")),
-                    "CUANTIA": fila.get("CUANTIA", ""),
-                    "NOMBRE": fila.get("NOMBRE", ""),
-                    "CC": fila.get("CC", ""),
-                    "CIUDAD": fila.get("CIUDAD", ""),
-                    "PAGARE": fila.get("PAGARE", ""),
-                    "CAPITAL_EN_LETRAS": fila.get("CAPITAL_EN_LETRAS", ""),
-                    "CAPITAL": fila.get("CAPITAL", ""),
-                    "FECHA_VENCIMIENTO": fila.get("FECHA_VENCIMIENTO", ""),
-                    "FECHA_INTERESES": fila.get("FECHA_INTERESES", ""),
-                    "DOMICILIO": fila.get("DOMICILIO", ""),
-                }
-                try:
-                    doc = Document(tpl_path)
-                    replace_placeholders_doc(doc, mapping)
-                    out_name = f"{sanitize_filename(mapping['CC'])}_{sanitize_filename(mapping['NOMBRE'])}_{tipo_doc}.docx"
-                    mem = io.BytesIO()
-                    doc.save(mem)
-                    mem.seek(0)
-                    zf.writestr(out_name, mem.read())
-                except Exception as e:
-                    zf.writestr(f"ERROR_FILA_{idx}.txt", f"Error en fila {idx}: {e}")
-        zip_buffer.seek(0)
-        st.download_button("⬇️ Descargar ZIP",
-                           data=zip_buffer,
-                           file_name=f"Documentos_{tipo_doc}.zip",
-                           mime="application/zip")
+            st.divider()
+            st.markdown("### 📦 Generación masiva")
+            st.write("Genera todos los documentos en un solo archivo ZIP.")
+
+            if st.button("📦 Generar TODOS (ZIP)"):
+                tpl_path = TEMPLATE_DEMANDA_PATH if tipo_doc == "DEMANDA" else TEMPLATE_MEDIDAS_PATH
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w") as zf:
+                    for idx, fila in df.iterrows():
+                        mapping = {
+                            "JUZGADO": juzgado_con_reparto(fila.get("JUZGADO", "")),
+                            "CUANTIA": fila.get("CUANTIA", ""),
+                            "NOMBRE": fila.get("NOMBRE", ""),
+                            "CC": fila.get("CC", ""),
+                            "CIUDAD": fila.get("CIUDAD", ""),
+                            "PAGARE": fila.get("PAGARE", ""),
+                            "CAPITAL_EN_LETRAS": fila.get("CAPITAL_EN_LETRAS", ""),
+                            "CAPITAL": fila.get("CAPITAL", ""),
+                            "FECHA_VENCIMIENTO": fila.get("FECHA_VENCIMIENTO", ""),
+                            "FECHA_INTERESES": fila.get("FECHA_INTERESES", ""),
+                            "DOMICILIO": fila.get("DOMICILIO", ""),
+                        }
+                        try:
+                            doc = Document(tpl_path)
+                            replace_placeholders_doc(doc, mapping)
+                            out_name = f"{sanitize_filename(mapping['CC'])}_{sanitize_filename(mapping['NOMBRE'])}_{tipo_doc}.docx"
+                            mem = io.BytesIO()
+                            doc.save(mem)
+                            mem.seek(0)
+                            zf.writestr(out_name, mem.read())
+                        except Exception as e:
+                            zf.writestr(f"ERROR_FILA_{idx}.txt", f"Error en fila {idx}: {e}")
+                zip_buffer.seek(0)
+                st.download_button(
+                    "⬇️ Descargar ZIP con todos los documentos",
+                    data=zip_buffer,
+                    file_name=f"Documentos_{tipo_doc}.zip",
+                    mime="application/zip"
+                )
+    else:
+        st.info("Sube el Excel para continuar.")
