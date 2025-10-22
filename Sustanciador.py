@@ -213,17 +213,11 @@ with tab1:
                     replace_date_pattern(doc, "radicada el", PATTERN_RADICADA,
                         f"radicada el día {fecha_str}")
 
-            elif subetapa == "Liquidacion" and o_col:
-                raw_fecha = row.get(o_col)
-                if isinstance(raw_fecha, datetime):
-                    fecha_dt = raw_fecha
-                else:
-                    fecha_dt = parse_ddmmyyyy(str(raw_fecha))
+            elif subetapa == "Liquidacion" and af_col:
+                fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), ["liquidacion", "liquidación", "credito", "crédito"])
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    pattern_liquidacion = (
-                        r"(?i)(radicado\s+el\s+(?:d[ií]a\s+)?)([0-9]{1,2}\s+de\s+\w+\s+de\s+[0-9]{4})"
-                    )
+                    pattern_liquidacion = (r"(?i)(radicado\s+el\s+(?:d[ií]a\s+)?)([0-9]{1,2}\s+de\s+\w+\s+de\s+[0-9]{4})")
                     replace_date_pattern(doc, "radicado el", pattern_liquidacion,
                         f"radicado el día {fecha_str}")
 
