@@ -213,21 +213,11 @@ with tab1:
                     replace_date_pattern(doc, "radicada el", PATTERN_RADICADA,
                         f"radicada el día {fecha_str}")
             elif subetapa == "Liquidacion" and af_col:
-                fecha_dt = extract_fecha_mas_reciente_AF(
-                    row.get(af_col),
-                    ["liquidacion", "liquidación", "credito", "crédito"]
-                )
+                fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), SENTENCIA_KEYS)
                 if fecha_dt:
-                    fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    
-                    # ✅ Reemplazo literal forzado: sin regex
-                    for p in doc.paragraphs:
-                        if "radicado el día xx de xxxx de xxxx" in p.text:
-                            p.text = p.text.replace(
-                                "radicado el día xx de xxxx de xxxx",
-                                f"radicado el día {fecha_str}"
-                            )
-                            break
+                    replace_date_pattern(doc, "el pasado", PATTERN_PASADO,
+                        f"el pasado {format_fecha_dd_de_mm_de_yyyy(fecha_dt)}")
+             
             return doc, cc, nombre
 
         # === Generación individual ===
