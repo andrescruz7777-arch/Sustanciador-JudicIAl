@@ -219,10 +219,18 @@ with tab1:
                     fecha_dt = parse_ddmmyyyy(str(raw_fecha))
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    replace_date_pattern( doc, "radicado el",r"radicado el\s+(?:día\s+)?[0-9]{1,2}\s+de\s+\w+\s+de\s+[0-9]{4}",
-                                         f"radicado el día {fecha_str}"
+
+        # ✅ Nuevo patrón más flexible (insensible a mayúsculas, tildes o espacios)
+        pattern_liquidacion = (
+            r"(?i)(radicado\s+el\s+(?:d[ií]a\s+)?)([0-9]{1,2}\s+de\s+\w+\s+de\s+[0-9]{4})"
         )
 
+        replace_date_pattern(
+            doc,
+            "radicado el",
+            pattern_liquidacion,
+            f"radicado el día {fecha_str}"
+        )
             return doc, cc, nombre
             
 
