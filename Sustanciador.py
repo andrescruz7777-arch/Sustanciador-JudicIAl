@@ -219,17 +219,15 @@ with tab1:
                 )
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    # 🔹 Patrón exacto según tu plantilla:# "radicado el día xx de xxxx de xxxx, mediante el cual se presentó liquidación de crédito."
-                    pattern_liquidacion = (
-                        r"(radicado\s+el\s+d[ií]a\s+)xx\s+de\s+xxxx\s+de\s+xxxx"
-                    )
-                    replace_date_pattern(
-                        doc,
-                        "radicado el día xx de xxxx de xxxx",
-                        pattern_liquidacion,
-                        f"\\1{fecha_str}"
-                    )
-
+                    
+                    # ✅ Reemplazo literal forzado: sin regex
+                    for p in doc.paragraphs:
+                        if "radicado el día xx de xxxx de xxxx" in p.text:
+                            p.text = p.text.replace(
+                                "radicado el día xx de xxxx de xxxx",
+                                f"radicado el día {fecha_str}"
+                            )
+                            break
             return doc, cc, nombre
 
         # === Generación individual ===
