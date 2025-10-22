@@ -212,21 +212,24 @@ with tab1:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
                     replace_date_pattern(doc, "radicada el", PATTERN_RADICADA,
                         f"radicada el día {fecha_str}")
-
             elif subetapa == "Liquidacion" and af_col:
-                fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col),
-                        ["liquidacion", "liquidación", "credito", "crédito"] )
+                fecha_dt = extract_fecha_mas_reciente_AF(
+                    row.get(af_col),
+                    ["liquidacion", "liquidación", "credito", "crédito"
+                )
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
                     # Patrón flexible: acepta fecha real o los marcadores “xx de xxxx de xxxx”
-            pattern_liquidacion = (
-            r"(?i)(radicado\s+el\s+(?:d[ií]a\s+)?)(?:[0-9]{1,2}\s+de\s+\w+\s+de\s+[0-9]{4}|xx\s+de\s+\w+\s+de\s+xxxx)")
-            replace_date_pattern(doc, "radicado el",
-                                 pattern_liquidacion,
-                                 f"radicado el día {fecha_str}"
-        )
-
-
+                    pattern_liquidacion = (
+                        r"(?i)(radicado\s+el\s+(?:d[ií]a\s+)?)(?:[0-9]{1,2}\s+de\s+\w+\s+de\s+[0-9]{4}|xx\s+de\s+\w+\s+de\s+xxxx)"
+                    )
+                    replace_date_pattern(
+                        doc,
+                        "radicado el",
+                        pattern_liquidacion,
+                        f"radicado el día {fecha_str}"
+                    )
+            
             return doc, cc, nombre
 
         # === Generación individual ===
