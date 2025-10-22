@@ -216,7 +216,7 @@ with tab1:
                 fecha_dt = extract_fecha_mas_reciente_AF(
                     row.get(af_col),
                     ["liquidacion", "liquidación", "credito", "crédito"
-            )
+                     )
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
                     # Patrón flexible: acepta fecha real o los marcadores “xx de xxxx de xxxx”
