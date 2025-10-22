@@ -219,13 +219,17 @@ with tab1:
                 )
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    # 🔹 Reemplazo directo del texto literal de la plantilla
+                    # 🔹 Patrón exacto según tu plantilla:# "radicado el día xx de xxxx de xxxx, mediante el cual se presentó liquidación de crédito."
+                    pattern_liquidacion = (
+                        r"(radicado\s+el\s+d[ií]a\s+)xx\s+de\s+xxxx\s+de\s+xxxx"
+                    )
                     replace_date_pattern(
                         doc,
                         "radicado el día xx de xxxx de xxxx",
-                        r"radicado\s+el\s+d[ií]a\s+xx\s+de\s+\w+\s+de\s+xxxx",
-                        f"radicado el día {fecha_str}"
+                        pattern_liquidacion,
+                        f"\\1{fecha_str}"
                     )
+
             return doc, cc, nombre
 
         # === Generación individual ===
