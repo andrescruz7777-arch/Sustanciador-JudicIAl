@@ -212,7 +212,7 @@ with tab1:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
                     replace_date_pattern(doc, "radicada el", PATTERN_RADICADA,
                         f"radicada el día {fecha_str}")
-            elif subetapa == "Liquidacion" and af_col:
+            elif subetapa == "Liquidacion de credito" and af_col:
                 fecha_dt = extract_fecha_mas_reciente_AF(row.get(af_col), SENTENCIA_KEYS)
                 if fecha_dt:
                     replace_date_pattern(doc, "el pasado", PATTERN_PASADO,
