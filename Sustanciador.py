@@ -219,14 +219,11 @@ with tab1:
                 )
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
-                    # Patrón flexible: acepta fecha real o los marcadores “xx de xxxx de xxxx”
-                    pattern_liquidacion = (
-                        r"(?i)(radicado\s+el\s+(?:d[ií]a\s+)?)(?:[0-9]{1,2}\s+de\s+\w+\s+de\s+[0-9]{4}|xx\s+de\s+\w+\s+de\s+xxxx)"
-                    )
+                    # 🔹 Reemplazo directo del texto literal de la plantilla
                     replace_date_pattern(
                         doc,
-                        "radicado el",
-                        pattern_liquidacion,
+                        "radicado el día xx de xxxx de xxxx",
+                        r"radicado\s+el\s+d[ií]a\s+xx\s+de\s+\w+\s+de\s+xxxx",
                         f"radicado el día {fecha_str}"
                     )
             return doc, cc, nombre
