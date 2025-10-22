@@ -211,8 +211,20 @@ with tab1:
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
                     replace_date_pattern(doc, "radicada el", PATTERN_RADICADA, f"radicada el día {fecha_str}")
+            elif subetapa == "Liquidacion" and o_col:
+                raw_fecha = row.get(o_col)
+                if isinstance(raw_fecha, datetime):
+                    fecha_dt = raw_fecha
+                else:
+                    fecha_dt = parse_ddmmyyyy(str(raw_fecha))
+                if fecha_dt:
+                    fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
+                    replace_date_pattern( doc, "radicado el",r"radicado el\s+(?:día\s+)?[0-9]{1,2}\s+de\s+\w+\s+de\s+[0-9]{4}",
+                                         f"radicado el día {fecha_str}"
+        )
 
             return doc, cc, nombre
+            
 
         # === Generación individual ===
         row = df.loc[sel_idx]
