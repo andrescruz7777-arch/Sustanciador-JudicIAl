@@ -215,7 +215,7 @@ with tab1:
             elif subetapa == "Liquidacion" and af_col:
                 fecha_dt = extract_fecha_mas_reciente_AF(
                     row.get(af_col),
-                    ["liquidacion", "liquidación", "credito", "crédito"
+                    ["liquidacion", "liquidación", "credito", "crédito"]
                 )
                 if fecha_dt:
                     fecha_str = format_fecha_dd_de_mm_de_yyyy(fecha_dt)
@@ -229,7 +229,6 @@ with tab1:
                         pattern_liquidacion,
                         f"radicado el día {fecha_str}"
                     )
-            
             return doc, cc, nombre
 
         # === Generación individual ===
